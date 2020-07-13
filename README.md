@@ -9,3 +9,35 @@
 </p>
 
 Pulls token information from the kleros T2CR and publishes to IPFS following uniswap/token-lists schema.
+
+## Debugging
+
+If developing in VS Code/Codium, you can use this `.vscode/launch.json` file for debugging:
+
+```
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Program",
+      "preLaunchTask": "${defaultBuildTask}",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "program": "${workspaceFolder}/dist",
+      "outFiles": [
+        "${workspaceFolder}/**/*.js"
+      ]
+    }
+  ]
+}
+```
+
+## Contributing
+
+See CONTRIBUTING.md.
