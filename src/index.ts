@@ -1,12 +1,15 @@
 import dotenv from 'dotenv'
 import { ethers } from 'ethers'
+import { TokenList, TokenInfo, schema, Version } from '@uniswap/token-lists'
+import Ajv from 'ajv'
 
 import { BadgeABI, TokensViewABI, ERC20ABI } from './abis'
-import { Token, FormattedToken } from './types/global'
+import { Token } from './types/global'
 
 dotenv.config({ path: '.env' })
 import './utils/env-check'
 
+const { validate } = new Ajv()
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const FILTER = [
   false, // Do not include items which are not on the TCR.
@@ -79,7 +82,7 @@ async function main() {
   const chainId = (await provider.getNetwork()).chainId
 
   // With the token IDs, get the information and add it to the object.
-  const fetchedTokens: FormattedToken[] = (
+  const fetchedTokens: TokenInfo[] = (
     await tokensView.getTokens(process.env.T2CR_ADDRESS, tokenIDs)
   )
     .filter((tokenInfo: Token) => tokenInfo.addr !== ZERO_ADDRESS)
@@ -103,12 +106,12 @@ async function main() {
   // which do not play well with the current implementation of the
   // view contract and also return 0 decimals.
   // We'll have to handle them separately as well.
-  const missingDecimals: FormattedToken[] = fetchedTokens.filter(
-    (token: FormattedToken) => token.decimals === 0,
+  const missingDecimals: TokenInfo[] = fetchedTokens.filter(
+    (token: TokenInfo) => token.decimals === 0,
   )
 
   const tokens = fetchedTokens.filter(
-    (token: FormattedToken) => token.decimals !== 0,
+    (token: TokenInfo) => token.decimals !== 0,
   )
 
   for (const missingDecimalToken of missingDecimals) {
@@ -135,14 +138,14 @@ async function main() {
   // Increment minor version when tokens are added
   // Increment patch version when tokens already on the list have minor details changed (name, symbol, logo URL)
   // Changing a token address or chain ID is considered both a remove and an add, and should be a major version update.
-  const version = {
+  const version: Version = {
     major: 1,
     minor: 0,
     patch: 0,
   }
 
   // Build the JSON object.
-  const tokenList = {
+  const tokenList: TokenList = {
     name: 'Kleros T2CR Token List',
     keywords: ['t2cr', 'kleros', 'list'],
     timestamp,
@@ -154,8 +157,10 @@ async function main() {
       },
     },
     tokens,
-    logoURI: `ipfs://${process.env.LIST_LOGO_URI.slice('/ipfs/'.length)}`,
   }
+
+  if (!validate(tokenList, schema))
+    throw new Error(`Could not validate generated list ${tokenList}`)
 
   // TODO: Upload to ipfs
   // TODO: Update ens to point to new token list.

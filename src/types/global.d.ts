@@ -9,13 +9,3 @@ interface Token {
   status: number
   decimals: BigNumber
 }
-
-interface FormattedToken {
-  chainId: number
-  address: string
-  symbol: string
-  name: string
-  decimals: number
-  logoURI: string
-  tags: string[]
-}

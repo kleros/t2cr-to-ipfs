@@ -21,9 +21,3 @@ if (!process.env.T2CR_ADDRESS) {
     'T2CR contract address not set. Please set the T2CR_ADDRESS environment variable',
   )
 }
-
-if (!process.env.LIST_LOGO_URI) {
-  throw new Error(
-    'List logo URI not set. Please set the LIST_LOGO_URI environment variable in the format /ipfs/${path}. Example.: /ipfs/QmUSNbwUxUYNMvMksKypkgWs8unSm8dX2GjCPBVGZ7GGMr',
-  )
-}
