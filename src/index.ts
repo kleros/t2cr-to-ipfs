@@ -2,9 +2,12 @@ import dotenv from 'dotenv'
 import { ethers } from 'ethers'
 import { TokenList, TokenInfo, schema, Version } from '@uniswap/token-lists'
 import Ajv from 'ajv'
+import { isEqual } from 'lodash'
 
 import { BadgeABI, TokensViewABI, ERC20ABI } from './abis'
 import { Token } from './types/global'
+import TestTokenList from './utils/test-token-list.json'
+import getNewVersion from './utils/get-new-version'
 
 dotenv.config({ path: '.env' })
 import './utils/env-check'
@@ -23,6 +26,8 @@ const FILTER = [
 ]
 
 async function main() {
+  console.info()
+  console.info('Running...')
   const provider = new ethers.providers.JsonRpcProvider(
     process.env.PROVIDER_URL,
   )
@@ -88,7 +93,7 @@ async function main() {
     .filter((tokenInfo: Token) => tokenInfo.addr !== ZERO_ADDRESS)
     .map((token: Token) => ({
       chainId,
-      address: token.addr,
+      address: ethers.utils.getAddress(token.addr),
       symbol: token.ticker,
       name: token.name,
       decimals: token.decimals.toNumber(),
@@ -132,16 +137,23 @@ async function main() {
     }
   }
 
-  // TODO: Pull the latest list from tokenlist.kleros.eth, compare the two lists and build a new version object.
-  // List versions must follow the rules:
-  // Increment major version when tokens are removed
-  // Increment minor version when tokens are added
-  // Increment patch version when tokens already on the list have minor details changed (name, symbol, logo URL)
-  // Changing a token address or chain ID is considered both a remove and an add, and should be a major version update.
-  const version: Version = {
-    major: 1,
-    minor: 0,
-    patch: 0,
+  // TODO: Pull the latest list from tokenlist.kleros.eth
+  const latestList: TokenList = TestTokenList // Using a placeholder for now.
+
+  // Ensure addresses of the fetched lists are normalized.
+  latestList.tokens = latestList.tokens.map((token) => ({
+    ...token,
+    address: ethers.utils.getAddress(token.address),
+  }))
+
+  // TODO: Compare the latest list with the newly created
+  const version: Version = getNewVersion(latestList, tokens)
+
+  if (isEqual(latestList.version, version)) {
+    // List did not change. Stop here.
+    console.info('List did not change.')
+    console.info()
+    return
   }
 
   // Build the JSON object.
