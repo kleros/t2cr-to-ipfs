@@ -8,7 +8,8 @@ declare global {
       TOKENS_VIEW_ADDRESS: string
       PROVIDER_URL: string
       POLL_PERIOD_SECONDS: string
-      LIST_LOGO_URI: string
+      LATEST_LIST_URL: string
+      IPFS_GATEWAY: string
     }
   }
 }

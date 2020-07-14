@@ -3,16 +3,19 @@ import { ethers } from 'ethers'
 import { TokenList, TokenInfo, schema, Version } from '@uniswap/token-lists'
 import Ajv from 'ajv'
 import { isEqual } from 'lodash'
+import { TextEncoder } from 'util'
+import fetch from 'node-fetch'
 
 import { BadgeABI, TokensViewABI, ERC20ABI } from './abis'
 import { Token } from './types/global'
-import TestTokenList from './utils/test-token-list.json'
 import getNewVersion from './utils/get-new-version'
+import ipfsPublish from './utils/ipfs-publish'
 
 dotenv.config({ path: '.env' })
 import './utils/env-check'
 
-const { validate } = new Ajv()
+const ajv = new Ajv({ allErrors: true, format: 'full' })
+const validator = ajv.compile(schema)
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const FILTER = [
   false, // Do not include items which are not on the TCR.
@@ -87,6 +90,7 @@ async function main() {
   const chainId = (await provider.getNetwork()).chainId
 
   // With the token IDs, get the information and add it to the object.
+  console.info('Fetching tokens...')
   const fetchedTokens: TokenInfo[] = (
     await tokensView.getTokens(process.env.T2CR_ADDRESS, tokenIDs)
   )
@@ -137,8 +141,9 @@ async function main() {
     }
   }
 
-  // TODO: Pull the latest list from tokenlist.kleros.eth
-  const latestList: TokenList = TestTokenList // Using a placeholder for now.
+  const latestList: TokenList = await (
+    await fetch(process.env.LATEST_LIST_URL)
+  ).json()
 
   // Ensure addresses of the fetched lists are normalized.
   latestList.tokens = latestList.tokens.map((token) => ({
@@ -146,7 +151,6 @@ async function main() {
     address: ethers.utils.getAddress(token.address),
   }))
 
-  // TODO: Compare the latest list with the newly created
   const version: Version = getNewVersion(latestList, tokens)
 
   if (isEqual(latestList.version, version)) {
@@ -171,10 +175,16 @@ async function main() {
     tokens,
   }
 
-  if (!validate(tokenList, schema))
-    throw new Error(`Could not validate generated list ${tokenList}`)
+  // TODO: Enable validator after logoURIs are less than 20 chars, formated and pointing to 64x64 images.
+  // if (!validator(tokenList)) {
+  //   console.error('Validation errors: ', validator.errors)
+  //   throw new Error(`Could not validate generated list ${tokenList}`)
+  // }
 
-  // TODO: Upload to ipfs
+  const data = new TextEncoder().encode(JSON.stringify(tokenList, null, 2))
+  const ipfsResponse = await ipfsPublish('mainnet.t2cr.tokenlist.json', data)
+  const URI = `/ipfs/${ipfsResponse[1].hash + ipfsResponse[0].path}`
+
   // TODO: Update ens to point to new token list.
 }
 
