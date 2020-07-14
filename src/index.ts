@@ -8,11 +8,10 @@ import fetch from 'node-fetch'
 
 import { BadgeABI, TokensViewABI, ERC20ABI } from './abis'
 import { Token } from './types/global'
-import getNewVersion from './utils/get-new-version'
-import ipfsPublish from './utils/ipfs-publish'
+import { getNewVersion, ipfsPublish, checkEnv } from './utils'
 
 dotenv.config({ path: '.env' })
-import './utils/env-check'
+checkEnv()
 
 const ajv = new Ajv({ allErrors: true, format: 'full' })
 const validator = ajv.compile(schema)

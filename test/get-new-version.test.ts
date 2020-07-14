@@ -1,6 +1,6 @@
 import { cloneDeep } from 'lodash'
 
-import getNewVersion from '../src/utils/get-new-version'
+import { getNewVersion } from '../src/utils'
 import TestTokenList from './files/test-token-list.json'
 
 test('Increments minor version if a token is added', () => {
