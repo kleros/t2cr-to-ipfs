@@ -8,7 +8,11 @@
   <a href="http://commitizen.github.io/cz-cli/"><img src="https://img.shields.io/badge/commitizen-friendly-brightgreen.svg" alt="Commitizen Friendly"></a>
 </p>
 
-Pulls token information from the kleros T2CR and publishes to IPFS following uniswap/token-lists schema.
+Pulls token information from the kleros T2CR and publishes to IPFS following uniswap/token-lists schema.f
+
+## Requirements
+
+Tested on node version 10.21.0.
 
 ## Debugging
 
