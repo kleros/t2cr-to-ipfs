@@ -5,6 +5,7 @@ import Ajv from 'ajv'
 import { isEqual } from 'lodash'
 import { TextEncoder } from 'util'
 import fetch from 'node-fetch'
+import sharp from 'sharp'
 
 import { BadgeABI, TokensViewABI, ERC20ABI } from './abis'
 import { Token } from './types/global'
@@ -17,7 +18,7 @@ const ajv = new Ajv({ allErrors: true, format: 'full' })
 const validator = ajv.compile(schema)
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const FILTER = [
-  false, // Do not include items which are not on the TCR.
+  false, // Do not include absent items (e.g. items that were rejected or that were accepted but later removed).
   true, // Include registered items.
   false, // Do not include items with pending registration requests.
   true, // Include items with pending removal requests.
@@ -100,11 +101,31 @@ async function main() {
       symbol: token.ticker,
       name: token.name,
       decimals: token.decimals.toNumber(),
-      logoURI: token.symbolMultihash, // TODO: shrink to 64x64 pixels and upload to ipfs.
+      logoURI: token.symbolMultihash,
       tags: ['erc20'],
     }))
 
-  console.info(`Got ${fetchedTokens.length} tokens.`)
+  console.info(
+    `Got ${fetchedTokens.length} tokens. Shrinking and uploading token logos...`,
+  )
+  // Doing this synchronously to avoid DoSing the node (might not be required anymore).
+  let i = 0
+  for (const token of fetchedTokens) {
+    console.info(`${++i} of ${fetchedTokens.length}`)
+    const imageBuffer = await (
+      await fetch(`${process.env.IPFS_GATEWAY}${token.logoURI}`)
+    ).buffer()
+
+    const resizedImageBuffer = await sharp(imageBuffer)
+      .resize(64, 64)
+      .png()
+      .toBuffer()
+    const ipfsResponse = await ipfsPublish(
+      `${token.symbol}.png`,
+      resizedImageBuffer,
+    )
+    token.logoURI = `ipfs://${ipfsResponse[1].hash}${ipfsResponse[0].path}`
+  }
 
   // The `decimals()` function of the ERC20 standard is optional, so some
   // token contracts (e.g. DigixDAO/DGD) do not implement it.
@@ -155,13 +176,13 @@ async function main() {
   if (isEqual(latestList.version, version)) {
     // List did not change. Stop here.
     console.info('List did not change.')
-    console.info()
+    console.info('Latest list can be found at', process.env.LATEST_LIST_URL)
     return
   }
 
   // Build the JSON object.
   const tokenList: TokenList = {
-    name: 'Kleros T2CR Token List',
+    name: 'Kleros T2CR',
     keywords: ['t2cr', 'kleros', 'list'],
     timestamp,
     version,
@@ -183,6 +204,7 @@ async function main() {
   const data = new TextEncoder().encode(JSON.stringify(tokenList, null, 2))
   const ipfsResponse = await ipfsPublish('mainnet.t2cr.tokenlist.json', data)
   const URI = `/ipfs/${ipfsResponse[1].hash + ipfsResponse[0].path}`
+  console.info('List at', URI)
 
   // TODO: Update ens to point to new token list.
 }

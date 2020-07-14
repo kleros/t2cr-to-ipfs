@@ -6,8 +6,11 @@ import fetch from 'node-fetch'
  * @param {ArrayBuffer} data - The raw data from the file to upload.
  * @returns {object} ipfs response. Should include the hash and path of the stored item.
  */
-async function ipfsPublish(fileName: string, data: ArrayBuffer): Promise<any> {
-  const buffer = await Buffer.from(data)
+async function ipfsPublish(
+  fileName: string,
+  data: ArrayBuffer | Buffer,
+): Promise<any> {
+  data = await Buffer.from(data)
 
   return (
     await (
@@ -15,7 +18,7 @@ async function ipfsPublish(fileName: string, data: ArrayBuffer): Promise<any> {
         method: 'POST',
         body: JSON.stringify({
           fileName,
-          buffer,
+          buffer: data,
         }),
         headers: {
           'content-type': 'application/json',
