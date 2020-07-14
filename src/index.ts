@@ -162,7 +162,7 @@ async function main() {
   }
 
   const latestList: TokenList = await (
-    await fetch(process.env.LATEST_LIST_URL)
+    await fetch(process.env.LATEST_LIST_URL || '')
   ).json()
 
   // Ensure addresses of the fetched lists are normalized.
