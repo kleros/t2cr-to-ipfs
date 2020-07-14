@@ -26,7 +26,6 @@ test('Increments minor version if a token is added', () => {
 test('Increments the major version when tokens are removed', () => {
   const newList = TestTokenList.tokens.slice(1)
 
-  // Should increment minor version when tokens are added
   expect(getNewVersion(TestTokenList, newList)).toEqual({
     major: 2,
     minor: 0,
@@ -39,7 +38,6 @@ test('Increments the patch version when tokens already on the list have minor de
   newList[0].symbol = `a${newList[0].name}`
   newList[1].name = `${newList[1].name} Token`
 
-  // Should increment minor version when tokens are added
   expect(getNewVersion(TestTokenList, newList)).toEqual({
     major: 1,
     minor: 0,
@@ -52,10 +50,9 @@ test('Changing a token address or chain ID is considered both a remove and an ad
   newList[0].chainId = 42
   newList[1].address = '0xB0b86791c6218b36c1d19D4a2e9Eb0cE3606eA37'
 
-  // Should increment minor version when tokens are added
   expect(getNewVersion(TestTokenList, newList)).toEqual({
-    major: 1,
+    major: 2,
     minor: 0,
-    patch: 1,
+    patch: 0,
   })
 })
