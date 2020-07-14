@@ -195,11 +195,10 @@ async function main() {
     tokens,
   }
 
-  // TODO: Enable validator after logoURIs are less than 20 chars, formated and pointing to 64x64 images.
-  // if (!validator(tokenList)) {
-  //   console.error('Validation errors: ', validator.errors)
-  //   throw new Error(`Could not validate generated list ${tokenList}`)
-  // }
+  if (!validator(tokenList)) {
+    console.error('Validation errors: ', validator.errors)
+    throw new Error(`Could not validate generated list ${tokenList}`)
+  }
 
   const data = new TextEncoder().encode(JSON.stringify(tokenList, null, 2))
   const ipfsResponse = await ipfsPublish('mainnet.t2cr.tokenlist.json', data)
