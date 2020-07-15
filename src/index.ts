@@ -9,7 +9,7 @@ import sharp from 'sharp'
 
 import { BadgeABI, TokensViewABI, ERC20ABI } from './abis'
 import { Token } from './types/global'
-import { getNewVersion, ipfsPublish, checkEnv } from './utils'
+import { getNewVersion, ipfsPublish, checkEnv, pinataPin } from './utils'
 
 dotenv.config({ path: '.env' })
 checkEnv()
@@ -124,7 +124,13 @@ async function main() {
       `${token.symbol}.png`,
       resizedImageBuffer,
     )
-    token.logoURI = `ipfs://${ipfsResponse[1].hash}${ipfsResponse[0].path}`
+    token.logoURI = `ipfs://${ipfsResponse[0].hash}`
+    if (
+      process.env.PINATA_URL &&
+      process.env.PINATA_API_KEY &&
+      process.env.PINATA_SECRET_API_KEY
+    )
+      pinataPin(ipfsResponse[0].hash)
   }
 
   // The `decimals()` function of the ERC20 standard is optional, so some
@@ -201,9 +207,15 @@ async function main() {
   }
 
   const data = new TextEncoder().encode(JSON.stringify(tokenList, null, 2))
-  const ipfsResponse = await ipfsPublish('mainnet.t2cr.tokenlist.json', data)
-  const URI = `/ipfs/${ipfsResponse[1].hash + ipfsResponse[0].path}`
-  console.info('List at', URI)
+  const ipfsResponse = await ipfsPublish('t2cr.tokenlist.json', data)
+
+  if (
+    process.env.PINATA_URL &&
+    process.env.PINATA_API_KEY &&
+    process.env.PINATA_SECRET_API_KEY
+  ) {
+    await pinataPin(ipfsResponse[0].hash)
+  }
 
   // TODO: Update ens to point to new token list.
 }

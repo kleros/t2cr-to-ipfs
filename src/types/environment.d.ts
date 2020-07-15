@@ -10,6 +10,9 @@ declare global {
       POLL_PERIOD_SECONDS: string
       LATEST_LIST_URL: string
       IPFS_GATEWAY: string
+      PINATA_API_KEY: string
+      PINATA_SECRET_API_KEY: string
+      PINATA_URL: string
     }
   }
 }
