@@ -218,6 +218,13 @@ async function main() {
   }
 
   // TODO: Update ens to point to new token list.
+  // As of v5.0.5, Ethers ENS API doesn't include managing ENS names, so we
+  // can't use directly. Neither does the ethjs API.
+  // Web3js supports it via web3.eth.ens but it can't sign transactions
+  // locally and send them via eth_sendRawTransaction, which means it can't
+  // be used with Ethereum endpoints that don't support
+  // eth_sendTransaction (e.g. Infura). We'll have to interact with the
+  // contracts directly RIP libraries.
 }
 
 main()

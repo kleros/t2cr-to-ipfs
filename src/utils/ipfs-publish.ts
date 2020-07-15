@@ -9,7 +9,7 @@ import fetch from 'node-fetch'
 async function ipfsPublish(
   fileName: string,
   data: ArrayBuffer | Buffer,
-): Promise<any> {
+): Promise<Record<string, string>[]> {
   data = await Buffer.from(data)
 
   return (

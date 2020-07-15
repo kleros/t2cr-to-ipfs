@@ -34,4 +34,10 @@ export default function checkEnvs(): void {
       'Latest list URL not set. Please set the LATEST_LIST_URL environment variable',
     )
   }
+
+  if (!process.env.WALLET_KEY) {
+    throw new Error(
+      'Latest list URL not set. Please set the LATEST_LIST_URL environment variable',
+    )
+  }
 }

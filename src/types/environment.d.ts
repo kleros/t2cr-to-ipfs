@@ -13,6 +13,7 @@ declare global {
       PINATA_API_KEY: string
       PINATA_SECRET_API_KEY: string
       PINATA_URL: string
+      WALLET_KEY: string
     }
   }
 }
