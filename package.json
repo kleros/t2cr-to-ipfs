@@ -42,6 +42,7 @@
     "@commitlint/cli": "^9.0.1",
     "@commitlint/config-conventional": "^9.0.1",
     "@secretlint/secretlint-rule-preset-recommend": "^2.1.0",
+    "@secretlint/secretlint-rule-secp256k1-privatekey": "^2.1.0",
     "@types/jest": "^26.0.4",
     "@typescript-eslint/eslint-plugin": "^3.6.0",
     "@typescript-eslint/parser": "^3.6.0",
