@@ -40,4 +40,16 @@ export default function checkEnvs(): void {
       'Latest list URL not set. Please set the LATEST_LIST_URL environment variable',
     )
   }
+
+  if (!process.env.ENS_CONTRACT) {
+    throw new Error(
+      'Latest list URL not set. Please set the LATEST_LIST_URL environment variable',
+    )
+  }
+
+  if (!process.env.ENS_LIST_NAME) {
+    throw new Error(
+      'Missing ens name for list. Please set the ENS_LIST_NAME environment variable',
+    )
+  }
 }

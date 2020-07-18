@@ -12,8 +12,9 @@ declare global {
       IPFS_GATEWAY: string
       PINATA_API_KEY: string
       PINATA_SECRET_API_KEY: string
-      PINATA_URL: string
       WALLET_KEY: string
+      ENS_CONTRACT: string
+      ENS_LIST_NAME: string
     }
   }
 }
