@@ -10,27 +10,22 @@ import { abi as resolverABI } from '@ensdomains/resolver/build/contracts/Resolve
 import namehash from 'eth-ens-namehash'
 import { encode } from 'content-hash'
 import pinataSDK from '@pinata/sdk'
+import { GeneralizedTCR } from '@kleros/gtcr-sdk'
 
-import { Token } from './types/token'
-import { BadgeABI, TokensViewABI, ERC20ABI } from './abis'
-import { getNewVersion, ipfsPublish, checkEnv } from './utils'
+import { ERC20ABI } from './abis'
+import {
+  getNewVersion,
+  ipfsPublish,
+  checkEnv,
+  getTokens,
+  getAddressesWithBadge,
+} from './utils'
 
 dotenv.config({ path: '.env' })
 checkEnv()
 
 const ajv = new Ajv({ allErrors: true, format: 'full' })
 const validator = ajv.compile(schema)
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
-const FILTER = [
-  false, // Do not include absent items (e.g. items that were rejected or that were accepted but later removed).
-  true, // Include registered items.
-  false, // Do not include items with pending registration requests.
-  true, // Include items with pending removal requests.
-  false, // Do not include items with challenged registration requests.
-  true, // Include items with challenged removal requests.
-  false, // Include token if caller is the author of a pending request (not used).
-  false, // Include token if caller is the challenger of a pending request (not used).
-]
 
 async function main() {
   console.info()
@@ -40,78 +35,6 @@ async function main() {
   )
   provider.pollingInterval =
     Number(process.env.POLL_PERIOD_SECONDS) || 60 * 1000 // Poll every minute.
-
-  const badge = new ethers.Contract(
-    process.env.BADGE_ADDRESS || '',
-    BadgeABI,
-    provider,
-  )
-
-  // We use a view contract to return token data
-  // efficiently.
-  const tokensView = new ethers.Contract(
-    process.env.TOKENS_VIEW_ADDRESS || '',
-    TokensViewABI,
-    provider,
-  )
-
-  // Fetch addresses of tokens that have the badge.
-  const addressesWithBadge = new Set()
-  let hasMore = true
-  let cursor = ZERO_ADDRESS
-  while (hasMore) {
-    console.info('Cursor:', cursor)
-    console.info('Fetching...')
-    const response = await badge.queryAddresses(
-      cursor, // A token address to start/end the query from. Set to zero means unused.
-      200, // Number of items to return at once.
-      FILTER,
-      true, // Return oldest first.
-    )
-
-    hasMore = response.hasMore
-
-    // Since the contract returns fixed sized arrays, we must filter out unused items.
-    const addresses = response[0].filter(
-      (address: string) => address !== ZERO_ADDRESS,
-    )
-
-    addresses.forEach((address: string) => addressesWithBadge.add(address))
-    cursor = addresses[addresses.length - 1]
-  }
-  console.info(`Got ${Array.from(addressesWithBadge).length} addresses.`)
-  console.info('Fetching token IDs for addresses')
-
-  // Fetch their submission IDs on the T2CR.
-  const tokenIDs = await tokensView.getTokensIDsForAddresses(
-    process.env.T2CR_ADDRESS,
-    Array.from(addressesWithBadge),
-  )
-  console.info(`Got ${tokenIDs.length} token IDs`)
-
-  // Part of the https://uniswap.org/tokenlist.schema.json schema.
-  const timestamp = new Date().toISOString()
-  const chainId = (await provider.getNetwork()).chainId
-
-  // With the token IDs, get the information and add it to the object.
-  console.info('Fetching tokens...')
-  const fetchedTokens: TokenInfo[] = (
-    await tokensView.getTokens(process.env.T2CR_ADDRESS, tokenIDs)
-  )
-    .filter((tokenInfo: Token) => tokenInfo.addr !== ZERO_ADDRESS)
-    .map((token: Token) => ({
-      chainId,
-      address: ethers.utils.getAddress(token.addr),
-      symbol: token.ticker,
-      name: token.name,
-      decimals: token.decimals.toNumber(),
-      logoURI: token.symbolMultihash,
-      tags: ['erc20'],
-    }))
-
-  console.info(
-    `Got ${fetchedTokens.length} tokens. Shrinking and uploading token logos...`,
-  )
 
   // Initialize pinata.cloud if keys were provided.
   let pinata
@@ -125,6 +48,16 @@ async function main() {
       await pinata.testAuthentication(),
     )
   }
+
+  const timestamp = new Date().toISOString()
+  const chainId = (await provider.getNetwork()).chainId
+
+  console.info('Fetching tokens...')
+  const fetchedTokens: TokenInfo[] = await getTokens(provider, chainId)
+
+  console.info(
+    `Got ${fetchedTokens.length} tokens. Shrinking and uploading token logos...`,
+  )
 
   // Doing this synchronously to avoid DoSing the node (might not be required anymore).
   let i = 0
@@ -172,6 +105,15 @@ async function main() {
     (token: TokenInfo) => token.decimals !== 0,
   )
 
+  const gtcr = new GeneralizedTCR(
+    provider,
+    process.env.TOKEN_DECIMALS_ADDRESS || '',
+    process.env.GTCR_VIEW_ADDRESS,
+    process.env.IPFS_GATEWAY,
+  )
+
+  const tokenDecimals = await gtcr.getItems()
+
   for (const missingDecimalToken of missingDecimals) {
     try {
       const token = new ethers.Contract(
@@ -186,9 +128,40 @@ async function main() {
         `${missingDecimalToken.symbol}/${missingDecimalToken.name} @ ${missingDecimalToken.address}, chainId ${chainId} throws when 'decimals' is called. Attempting to pull from Curate list of token decimals.`,
       )
 
-      // TODO: Pull decimals from curate list of token decimals.
+      for (const entry of tokenDecimals) {
+        if (
+          ((entry.resolved === true && entry.status === 1) ||
+            (!entry.resolved && entry.status === 3)) &&
+          ethers.utils.getAddress(entry.decodedData[0]) ===
+            missingDecimalToken.address
+        ) {
+          missingDecimalToken.decimals = entry.decodedData[1].toNumber()
+          tokens.push(missingDecimalToken)
+          console.info(
+            `Got decimal places from list: ${missingDecimalToken.decimals}`,
+          )
+          break
+        }
+      }
     }
   }
+
+  // Fetch token addresses with the badge
+  const tokensWithBadge = await getAddressesWithBadge(
+    process.env.BADGE_ADDRESS || '',
+    provider,
+  )
+
+  tokensWithBadge.forEach((tokenAddr) => {
+    tokens.forEach((token) => {
+      if (token.address === tokenAddr) token.tags?.push('erc20')
+    })
+  })
+
+  console.info(
+    'Tokens with the ERC20 badge',
+    tokens.filter((t) => t.tags && t.tags.includes('erc20')).length,
+  )
 
   console.info('Pulling latest list...')
   const latestList: TokenList = await (

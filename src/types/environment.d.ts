@@ -15,6 +15,8 @@ declare global {
       WALLET_KEY: string
       ENS_CONTRACT: string
       ENS_LIST_NAME: string
+      TOKEN_DECIMALS_ADDRESS: string
+      GTCR_VIEW_ADDRESS: string
     }
   }
 }

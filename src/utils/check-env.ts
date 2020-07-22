@@ -52,4 +52,16 @@ export default function checkEnvs(): void {
       'Missing ens name for list. Please set the ENS_LIST_NAME environment variable',
     )
   }
+
+  if (!process.env.GTCR_VIEW_ADDRESS) {
+    throw new Error(
+      'Missing Generalized TCR view contract address. Please set the GTCR_VIEW_ADDRESS environment variable',
+    )
+  }
+
+  if (!process.env.TOKEN_DECIMALS_ADDRESS) {
+    throw new Error(
+      'Missing token decimals TCR address. Please set the TOKEN_DECIMALS_ADDRESS environment variable',
+    )
+  }
 }
