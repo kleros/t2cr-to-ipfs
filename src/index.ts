@@ -37,7 +37,7 @@ async function main() {
     Number(process.env.POLL_PERIOD_SECONDS) || 60 * 1000 // Poll every minute.
 
   // Initialize pinata.cloud if keys were provided.
-  let pinata
+  let pinata: any
   if (process.env.PINATA_API_KEY && process.env.PINATA_SECRET_API_KEY) {
     pinata = pinataSDK(
       process.env.PINATA_API_KEY,
@@ -61,6 +61,7 @@ async function main() {
 
   // Doing this synchronously to avoid DoSing the node (might not be required anymore).
   let i = 0
+  const tokensWithLogo: TokenInfo[] = []
   for (const token of fetchedTokens) {
     console.info(`${++i} of ${fetchedTokens.length}`)
     const imageBuffer = await (
@@ -77,7 +78,7 @@ async function main() {
       `${token.symbol}.png`,
       resizedImageBuffer,
     )
-    token.logoURI = `ipfs://${ipfsResponse[0].hash}`
+
     if (pinata) {
       console.info('Pinning image on pinata.cloud...')
       try {
@@ -87,6 +88,11 @@ async function main() {
         console.error(err)
       }
     }
+
+    tokensWithLogo.push({
+      ...token,
+      logoURI: `ipfs://${ipfsResponse[0].hash}`,
+    })
   }
 
   // The `decimals()` function of the ERC20 standard is optional, so some
@@ -97,11 +103,11 @@ async function main() {
   // which do not play well with the current implementation of the
   // view contract and also return 0 decimals.
   // We'll have to handle them separately as well.
-  const missingDecimals: TokenInfo[] = fetchedTokens.filter(
+  const missingDecimals: TokenInfo[] = tokensWithLogo.filter(
     (token: TokenInfo) => token.decimals === 0,
   )
 
-  const tokens = fetchedTokens.filter(
+  const tokens: TokenInfo[] = tokensWithLogo.filter(
     (token: TokenInfo) => token.decimals !== 0,
   )
 
@@ -121,8 +127,10 @@ async function main() {
         ERC20ABI,
         provider,
       )
-      missingDecimalToken.decimals = (await token.decimals()).toNumber()
-      tokens.push(missingDecimalToken)
+      tokens.push({
+        ...missingDecimalToken,
+        decimals: (await token.decimals()).toNumber(),
+      })
     } catch (err) {
       console.warn(
         `${missingDecimalToken.symbol}/${missingDecimalToken.name} @ ${missingDecimalToken.address}, chainId ${chainId} throws when 'decimals' is called. Attempting to pull from Curate list of token decimals.`,
@@ -135,12 +143,16 @@ async function main() {
           ethers.utils.getAddress(entry.decodedData[0]) ===
             missingDecimalToken.address
         ) {
-          missingDecimalToken.decimals = entry.decodedData[1].toNumber()
-          tokens.push(missingDecimalToken)
+          tokens.push({
+            ...missingDecimalToken,
+            decimals: entry.decodedData[1].toNumber(),
+          })
           console.info(
             `Got decimal places from list: ${missingDecimalToken.decimals}`,
           )
           break
+        } else {
+          console.info(`Failed, token not registered on TCR.`)
         }
       }
     }
@@ -164,16 +176,19 @@ async function main() {
   )
 
   console.info('Pulling latest list...')
-  const latestList: TokenList = await (
+  let latestList: TokenList = await (
     await fetch(process.env.LATEST_LIST_URL || '')
   ).json()
   console.info('Done.')
 
   // Ensure addresses of the fetched lists are normalized.
-  latestList.tokens = latestList.tokens.map((token) => ({
-    ...token,
-    address: ethers.utils.getAddress(token.address),
-  }))
+  latestList = {
+    ...latestList,
+    tokens: latestList.tokens.map((token) => ({
+      ...token,
+      address: ethers.utils.getAddress(token.address),
+    })),
+  }
 
   const version: Version = getNewVersion(latestList, tokens)
 
@@ -187,6 +202,7 @@ async function main() {
   // Build the JSON object.
   const tokenList: TokenList = {
     name: 'Kleros T2CR',
+    logoURI: 'ipfs://QmRYXpD8X4sQZwA1E4SJvEjVZpEK1WtSrTqzTWvGpZVDwa',
     keywords: ['t2cr', 'kleros', 'list'],
     timestamp,
     version,
@@ -234,6 +250,7 @@ async function main() {
   const encodedContentHash = `0x${encode('ipfs-ns', contentHash)}`
   console.info()
   console.info('Updating ens entry...')
+  console.info(`Manager: ${await signer.getAddress()}`)
   await resolver.setContenthash(ensNamehash, encodedContentHash)
   console.info(
     `Done. List available at ${process.env.IPFS_GATEWAY}/ipfs/${contentHash}`,

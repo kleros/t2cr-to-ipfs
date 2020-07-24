@@ -28,7 +28,7 @@ export default async function getTokens(
     provider,
   )
 
-  const count = 200
+  const count = 300
   const tokens = new Map()
   let hasMore = true
   let cursor = 0
