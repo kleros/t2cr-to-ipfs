@@ -12,7 +12,7 @@ Pulls token information from the kleros T2CR and publishes to IPFS following uni
 
 ## Requirements
 
-Tested on node version 12.18.3.
+Tested on node version 10.21.0.
 
 ## Debugging
 
