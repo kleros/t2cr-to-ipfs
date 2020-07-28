@@ -147,8 +147,9 @@ async function main() {
             ...missingDecimalToken,
             decimals: entry.decodedData[1].toNumber(),
           })
+          console.info('|')
           console.info(
-            `Got decimal places from list: ${missingDecimalToken.decimals}`,
+            `--Got decimal places from list: ${entry.decodedData[1].toNumber()}`,
           )
           break
         } else {
