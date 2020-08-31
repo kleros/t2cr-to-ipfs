@@ -210,7 +210,7 @@ async function main() {
     tags: {
       erc20: {
         name: 'ERC20 Badge',
-        description: 'Tokens that were awarded the Kleros ERC20 Badge.',
+        description: `This token is verified to be ERC20 thus there shouldn't be incompatibility issues with the Uniswap protocol.`,
       },
     },
     tokens,
