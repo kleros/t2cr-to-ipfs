@@ -11,6 +11,8 @@ import namehash from 'eth-ens-namehash'
 import { encode } from 'content-hash'
 import pinataSDK from '@pinata/sdk'
 import { GeneralizedTCR } from '@kleros/gtcr-sdk'
+import fs from 'fs'
+import IpfsOnlyHash from 'ipfs-only-hash'
 
 import { ERC20ABI } from './abis'
 import {
@@ -24,7 +26,12 @@ import {
 dotenv.config({ path: '.env' })
 checkEnv()
 
-const ajv = new Ajv({ allErrors: true, format: 'full' })
+const ajv = new Ajv({
+  allErrors: true,
+  format: 'full',
+  $data: true,
+  verbose: true,
+})
 const validator = ajv.compile(schema)
 
 async function main() {
@@ -64,34 +71,78 @@ async function main() {
   const tokensWithLogo: TokenInfo[] = []
   for (const token of fetchedTokens) {
     console.info(`${++i} of ${fetchedTokens.length}`)
+    if (fs.existsSync(`images/${token.symbol}.png`)) {
+      console.info('Image available on cache.')
+
+      const multihash = await IpfsOnlyHash.of(
+        fs.readFileSync(`images/${token.symbol}.png`),
+      )
+
+      tokensWithLogo.push({
+        ...token,
+        logoURI: `ipfs://${multihash}`,
+      })
+      continue
+    }
+
     const imageBuffer = await (
       await fetch(`${process.env.IPFS_GATEWAY}${token.logoURI}`)
     ).buffer()
 
-    const resizedImageBuffer = await sharp(imageBuffer)
-      .resize(64, 64)
-      .png()
-      .toBuffer()
+    const imageSharp = await sharp(imageBuffer).resize(64, 64).png()
+    const resizedImageBuffer = await imageSharp.toBuffer()
 
-    console.info(`Uploading shrunk image to ${process.env.IPFS_GATEWAY}`)
-    const ipfsResponse = await ipfsPublish(
-      `${token.symbol}.png`,
-      resizedImageBuffer,
-    )
+    console.info(` Pinning shrunk image to ${process.env.IPFS_GATEWAY}`)
+    let ipfsResponse
 
-    if (pinata) {
-      console.info('Pinning image on pinata.cloud...')
+    for (let attempt = 1; attempt <= 10; attempt++)
       try {
-        await pinata.pinByHash(ipfsResponse[0].hash)
-        console.info('Done...')
+        ipfsResponse = await ipfsPublish(
+          `${token.symbol}.png`,
+          resizedImageBuffer,
+        )
+        console.info(` Uploaded ${token.symbol} image to gateway IPFS.`)
+        break
       } catch (err) {
-        console.error(err)
+        console.warn(` Failed to upload ${token.symbol} to gateway IPFS.`, err)
+        if (attempt === 5)
+          console.error(
+            ` Could not upload ${token.symbol} image to gateway IPFS after 5 attempts.`,
+          )
+        else console.warn(` Retrying ${attempt + 1} of ${5}`)
       }
+
+    let pinataHash
+    if (pinata)
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        console.info(` Pinning ${token.symbol} image on pinata.cloud...`)
+        try {
+          await imageSharp.toFile(`images/${token.symbol}.png`)
+          const readableStream = fs.createReadStream(
+            `images/${token.symbol}.png`,
+          )
+          pinataHash = (await pinata.pinFileToIPFS(readableStream)).IpfsHash
+          break
+        } catch (err) {
+          console.warn(` Failed to upload ${token.symbol} to pinnata.`, err)
+          if (attempt === 5)
+            console.error(
+              ` Could not upload ${token.symbol} image to pinnata after 5 attempts.`,
+            )
+          else console.warn(` Retrying ${attempt + 1} of ${5}`)
+        }
+      }
+
+    if (!ipfsResponse && !pinataHash) {
+      console.error()
+      throw new Error(
+        `Failed to upload ${token.symbol} image to both the ipfs gateway and pinata. Halting`,
+      )
     }
 
     tokensWithLogo.push({
       ...token,
-      logoURI: `ipfs://${ipfsResponse[0].hash}`,
+      logoURI: `ipfs://${ipfsResponse ? ipfsResponse[0].hash : pinataHash}`,
     })
   }
 
@@ -217,7 +268,11 @@ async function main() {
   }
 
   if (!validator(tokenList)) {
-    console.error('Validation errors: ', validator.errors)
+    console.error('Validation errors encountered.')
+    if (validator.errors)
+      validator.errors.map((err) => {
+        console.error(err)
+      })
     throw new Error(`Could not validate generated list ${tokenList}`)
   }
 
