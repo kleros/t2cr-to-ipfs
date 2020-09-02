@@ -158,9 +158,17 @@ async function main() {
     (token: TokenInfo) => token.decimals === 0,
   )
 
-  const tokens: TokenInfo[] = tokensWithLogo.filter(
-    (token: TokenInfo) => token.decimals !== 0,
-  )
+  // Invalid names should not prevent a new list from being published.
+  const re = new RegExp(schema.definitions.TokenInfo.properties.name.pattern)
+  const tokens: TokenInfo[] = tokensWithLogo
+    .filter((token: TokenInfo) => token.decimals !== 0)
+    .filter((t) => {
+      if (!re.test(t.name)) {
+        console.warn(` Token ${t.name} failed regex test, dropping it.`)
+        return false
+      }
+      return true
+    })
 
   const gtcr = new GeneralizedTCR(
     provider,
