@@ -268,7 +268,7 @@ async function main() {
     version,
     tags: {
       erc20: {
-        name: 'ERC20 Badge',
+        name: 'ERC20',
         description: `This token is verified to be ERC20 thus there should not be incompatibility issues with the Uniswap protocol.`,
       },
     },
