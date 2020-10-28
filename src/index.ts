@@ -154,21 +154,15 @@ async function main() {
   // which do not play well with the current implementation of the
   // view contract and also return 0 decimals.
   // We'll have to handle them separately as well.
-  const missingDecimals: TokenInfo[] = tokensWithLogo.filter(
+  // It may also be the case that the number of decimals of the token is 0
+  // so we'll query them individually.
+  const potentiallyMissingDecimals: TokenInfo[] = tokensWithLogo.filter(
     (token: TokenInfo) => token.decimals === 0,
   )
 
-  // Invalid names should not prevent a new list from being published.
-  const re = new RegExp(schema.definitions.TokenInfo.properties.name.pattern)
-  const tokens: TokenInfo[] = tokensWithLogo
-    .filter((token: TokenInfo) => token.decimals !== 0)
-    .filter((t) => {
-      if (!re.test(t.name)) {
-        console.warn(` Token ${t.name} failed regex test, dropping it.`)
-        return false
-      }
-      return true
-    })
+  const tokens: TokenInfo[] = tokensWithLogo.filter(
+    (token: TokenInfo) => token.decimals !== 0,
+  ) // These will be added later.
 
   const gtcr = new GeneralizedTCR(
     provider,
@@ -179,41 +173,37 @@ async function main() {
 
   const tokenDecimals = await gtcr.getItems()
 
-  for (const missingDecimalToken of missingDecimals) {
+  for (const checkToken of potentiallyMissingDecimals) {
     try {
-      const token = new ethers.Contract(
-        missingDecimalToken.address,
-        ERC20ABI,
-        provider,
-      )
+      const token = new ethers.Contract(checkToken.address, ERC20ABI, provider)
       tokens.push({
-        ...missingDecimalToken,
-        decimals: (await token.decimals()).toNumber(),
+        ...checkToken,
+        decimals: Number(await token.decimals()),
       })
     } catch (err) {
       console.warn(
-        `${missingDecimalToken.symbol}/${missingDecimalToken.name} @ ${missingDecimalToken.address}, chainId ${chainId} throws when 'decimals' is called. Attempting to pull from Curate list of token decimals.`,
+        `${checkToken.symbol}/${checkToken.name} @ ${checkToken.address}, chainId ${chainId} throws when 'decimals' is called with error ${err.message}.`,
       )
+      console.warn(` Attempting to pull from Curate list of token decimals.`)
 
       for (const entry of tokenDecimals) {
         if (
-          ((entry.resolved === true && entry.status === 1) ||
-            (!entry.resolved && entry.status === 3)) &&
-          ethers.utils.getAddress(entry.decodedData[0]) ===
-            missingDecimalToken.address
-        ) {
-          tokens.push({
-            ...missingDecimalToken,
-            decimals: entry.decodedData[1].toNumber(),
-          })
-          console.info('|')
-          console.info(
-            `--Got decimal places from list: ${entry.decodedData[1].toNumber()}`,
-          )
-          break
-        } else {
-          console.info(`Failed, token not registered on TCR.`)
-        }
+          ethers.utils.getAddress(entry.decodedData[0]) !== checkToken.address
+        )
+          continue
+        const { resolved, status } = entry
+        if (resolved && status === 0) continue // Submission was rejected.
+        if (!resolved && status === 2) continue // Submission was not accepted yet.
+
+        tokens.push({
+          ...checkToken,
+          decimals: entry.decodedData[1].toNumber(),
+        })
+        console.info(' |')
+        console.info(
+          `  --Got decimal places from list: ${entry.decodedData[1].toNumber()}`,
+        )
+        break
       }
     }
   }
@@ -259,6 +249,31 @@ async function main() {
     return
   }
 
+  // Invalid names or tickers should not prevent a new list from being published.
+  const nameRe = new RegExp(
+    schema.definitions.TokenInfo.properties.name.pattern,
+  )
+  const tickerRe = new RegExp(
+    schema.definitions.TokenInfo.properties.symbol.pattern,
+  )
+  const validatedTokens = tokens
+    .filter((t) => {
+      if (!nameRe.test(t.name)) {
+        console.warn(` Token ${t.name} failed name regex test, dropping it.`)
+        return false
+      }
+      return true
+    })
+    .filter((t) => {
+      if (!tickerRe.test(t.symbol)) {
+        console.warn(
+          ` Token ${t.symbol} failed ticker regex test, dropping it.`,
+        )
+        return false
+      }
+      return true
+    })
+
   // Build the JSON object.
   const tokenList: TokenList = {
     name: 'Kleros T2CR',
@@ -272,7 +287,7 @@ async function main() {
         description: `This token is verified to be ERC20 thus there should not be incompatibility issues with the Uniswap protocol.`,
       },
     },
-    tokens,
+    tokens: validatedTokens,
   }
 
   if (!validator(tokenList)) {
@@ -297,7 +312,7 @@ async function main() {
   }
 
   // As of v5.0.5, Ethers ENS API doesn't include managing ENS names, so we
-  // can't use directly. Neither does the ethjs API.
+  // can't use it directly. Neither does the ethjs API.
   // Web3js supports it via web3.eth.ens but it can't sign transactions
   // locally and send them via eth_sendRawTransaction, which means it can't
   // be used with Ethereum endpoints that don't support
