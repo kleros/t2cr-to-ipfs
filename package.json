@@ -8,7 +8,7 @@
   "license": "MIT",
   "private": false,
   "scripts": {
-    "start": "yarn build && node dist >> t2cr-to-ipfs-out.log",
+    "start": "yarn build && node dist",
     "dev": "concurrently \"tsc -w\" \"nodemon dist/index.js\"",
     "build": "rimraf dist && tsc",
     "production": "yarn build && node dist",
