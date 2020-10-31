@@ -1,4 +1,4 @@
-import dotenv from 'dotenv'
+import dotenv from 'dotenv-safe'
 import { ethers } from 'ethers'
 import { TokenList, TokenInfo, schema, Version } from '@uniswap/token-lists'
 import Ajv from 'ajv'
@@ -18,13 +18,11 @@ import { ERC20ABI } from './abis'
 import {
   getNewVersion,
   ipfsPublish,
-  checkEnv,
   getTokens,
   getAddressesWithBadge,
 } from './utils'
 
 dotenv.config({ path: '.env' })
-checkEnv()
 
 const ajv = new Ajv({
   allErrors: true,
@@ -208,22 +206,39 @@ async function main() {
     }
   }
 
-  // Fetch token addresses with the badge
-  const tokensWithBadge = await getAddressesWithBadge(
-    process.env.BADGE_ADDRESS || '',
-    provider,
+  // Add badge tags.
+  const tags = {
+    erc20: process.env.ERC20_BADGE_ADDRESS,
+    stablecoin: process.env.STABLECOIN_BADGE_ADDRESS,
+    trueCrypto: process.env.TRUECRYPTOSYSTEM_BADGE_ADDRESS,
+    dutchX: process.env.DUTCHX_BADGE_ADDRESS,
+  }
+
+  const badges = await Promise.all(
+    Object.entries(tags).map(async ([name, address]) => {
+      return {
+        [name]: await getAddressesWithBadge(address, provider),
+      }
+    }),
   )
 
-  tokensWithBadge.forEach((tokenAddr) => {
-    tokens.forEach((token) => {
-      if (token.address === tokenAddr) token.tags?.push('erc20')
+  badges.forEach((badge) => {
+    Object.entries(badge).forEach(([name, addresses]) => {
+      addresses.forEach((address) => {
+        tokens.forEach((token) => {
+          if (token.address === address) token.tags?.push(name)
+        })
+      })
     })
   })
 
-  console.info(
-    'Tokens with the ERC20 badge',
-    tokens.filter((t) => t.tags && t.tags.includes('erc20')).length,
-  )
+  Object.keys(tags).map((tag) => {
+    console.info(
+      `Tokens with the ${tag} badge: ${
+        tokens.filter((t) => t.tags && t.tags.includes(tag)).length
+      }`,
+    )
+  })
 
   console.info('Pulling latest list...')
   let latestList: TokenList = await (
@@ -285,6 +300,18 @@ async function main() {
       erc20: {
         name: 'ERC20',
         description: `This token is verified to be ERC20 thus there should not be incompatibility issues with the Uniswap protocol.`,
+      },
+      stablecoin: {
+        name: 'Stablecoin',
+        description: `This token is verified to maintain peg against a target.`,
+      },
+      trueCrypto: {
+        name: 'TrueCrypto',
+        description: `TrueCryptosystem verifies the token is a necessary element of a self sustaining public utility.`,
+      },
+      dutchX: {
+        name: 'DutchX',
+        description: `This token is verified to comply with the DutchX exchange listing criteria.`,
       },
     },
     tokens: validatedTokens,

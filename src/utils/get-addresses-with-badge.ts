@@ -25,9 +25,8 @@ export default async function getAddressesWithBadge(
   const addressesWithBadge = new Set<string>()
   let hasMore = true
   let cursor = ZERO_ADDRESS
+  console.info(`Fetching addresses with badge ${badgeAddress}`)
   while (hasMore) {
-    console.info('Cursor:', cursor)
-    console.info('Fetching...')
     const response = await badge.queryAddresses(
       cursor, // A token address to start/end the query from. Set to zero means unused.
       200, // Number of items to return at once.

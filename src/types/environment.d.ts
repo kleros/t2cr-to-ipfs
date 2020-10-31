@@ -4,7 +4,10 @@ declare global {
   namespace NodeJS {
     interface ProcessEnv {
       T2CR_ADDRESS: string
-      BADGE_ADDRESS: string
+      ERC20_BADGE_ADDRESS: string
+      STABLECOIN_BADGE_ADDRESS: string
+      TRUECRYPTOSYSTEM_BADGE_ADDRESS: string
+      DUTCHX_BADGE_ADDRESS: string
       TOKENS_VIEW_ADDRESS: string
       PROVIDER_URL: string
       POLL_PERIOD_SECONDS: string
