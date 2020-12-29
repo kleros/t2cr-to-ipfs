@@ -32,6 +32,11 @@ const ajv = new Ajv({
 })
 const validator = ajv.compile(schema)
 
+// We include part of the multihash on the cache filename to avoid
+// outdated files.
+const cacheName = (multihash: string | undefined, symbol: string) =>
+  multihash ? `${symbol}-` + multihash.slice(-10).replace('/', '-') : ''
+
 async function main() {
   console.info()
   console.info('Running...')
@@ -69,11 +74,11 @@ async function main() {
   const tokensWithLogo: TokenInfo[] = []
   for (const token of fetchedTokens) {
     console.info(`${++i} of ${fetchedTokens.length}`)
-    if (fs.existsSync(`images/${token.symbol}.png`)) {
+    if (fs.existsSync(`images/${cacheName(token.logoURI, token.symbol)}.png`)) {
       console.info('Image available on cache.')
 
       const multihash = await IpfsOnlyHash.of(
-        fs.readFileSync(`images/${token.symbol}.png`),
+        fs.readFileSync(`images/${cacheName(token.logoURI, token.symbol)}.png`),
       )
 
       tokensWithLogo.push({
@@ -115,9 +120,11 @@ async function main() {
       for (let attempt = 1; attempt <= 5; attempt++) {
         console.info(` Pinning ${token.symbol} image on pinata.cloud...`)
         try {
-          await imageSharp.toFile(`images/${token.symbol}.png`)
+          await imageSharp.toFile(
+            `images/${cacheName(token.logoURI, token.symbol)}.png`,
+          )
           const readableStream = fs.createReadStream(
-            `images/${token.symbol}.png`,
+            `images/${cacheName(token.logoURI, token.symbol)}.png`,
           )
           pinataHash = (await pinata.pinFileToIPFS(readableStream)).IpfsHash
           break
@@ -158,13 +165,13 @@ async function main() {
     (token: TokenInfo) => token.decimals === 0,
   )
 
-  const tokens: TokenInfo[] = tokensWithLogo.filter(
+  const latestTokens: TokenInfo[] = tokensWithLogo.filter(
     (token: TokenInfo) => token.decimals !== 0,
   ) // These will be added later.
 
   const gtcr = new GeneralizedTCR(
     provider,
-    process.env.TOKEN_DECIMALS_ADDRESS || '',
+    process.env.TOKEN_DECIMALS_TCR_ADDRESS || '',
     process.env.GTCR_VIEW_ADDRESS,
     process.env.IPFS_GATEWAY,
   )
@@ -174,7 +181,7 @@ async function main() {
   for (const checkToken of potentiallyMissingDecimals) {
     try {
       const token = new ethers.Contract(checkToken.address, ERC20ABI, provider)
-      tokens.push({
+      latestTokens.push({
         ...checkToken,
         decimals: Number(await token.decimals()),
       })
@@ -193,7 +200,7 @@ async function main() {
         if (resolved && status === 0) continue // Submission was rejected.
         if (!resolved && status === 2) continue // Submission was not accepted yet.
 
-        tokens.push({
+        latestTokens.push({
           ...checkToken,
           decimals: entry.decodedData[1].toNumber(),
         })
@@ -225,8 +232,8 @@ async function main() {
   badges.forEach((badge) => {
     Object.entries(badge).forEach(([name, addresses]) => {
       addresses.forEach((address) => {
-        tokens.forEach((token) => {
-          if (token.address === address) token.tags?.push(name)
+        latestTokens.forEach((t) => {
+          if (t.address === address) t.tags?.push(name)
         })
       })
     })
@@ -235,35 +242,36 @@ async function main() {
   Object.keys(tags).map((tag) => {
     console.info(
       `Tokens with the ${tag} badge: ${
-        tokens.filter((t) => t.tags && t.tags.includes(tag)).length
+        latestTokens.filter((t) => t.tags && t.tags.includes(tag)).length
       }`,
     )
   })
 
   console.info('Pulling latest list...')
-  let latestList: TokenList = await (
+  let previousList: TokenList = await (
     await fetch(process.env.LATEST_LIST_URL || '')
   ).json()
   console.info('Done.')
 
   // Ensure addresses of the fetched lists are normalized.
-  latestList = {
-    ...latestList,
-    tokens: latestList.tokens.map((token) => ({
+  previousList = {
+    ...previousList,
+    tokens: previousList.tokens.map((token) => ({
       ...token,
       address: ethers.utils.getAddress(token.address),
     })),
   }
 
-  const version: Version = getNewVersion(latestList, tokens)
+  const version: Version = getNewVersion(previousList, latestTokens)
 
-  if (isEqual(latestList.version, version)) {
+  if (isEqual(previousList.version, version)) {
     // List did not change. Stop here.
     console.info('List did not change.')
     console.info('Latest list can be found at', process.env.LATEST_LIST_URL)
     return
+  } else {
+    console.info('List changed.')
   }
-
   // Invalid names or tickers should not prevent a new list from being published.
   const nameRe = new RegExp(
     schema.definitions.TokenInfo.properties.name.pattern,
@@ -271,7 +279,7 @@ async function main() {
   const tickerRe = new RegExp(
     schema.definitions.TokenInfo.properties.symbol.pattern,
   )
-  const validatedTokens = tokens
+  const validatedTokens = latestTokens
     .filter((t) => {
       if (!nameRe.test(t.name)) {
         console.warn(` Token ${t.name} failed name regex test, dropping it.`)

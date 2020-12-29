@@ -1,17 +1,15 @@
-import { TokensViewABI } from '../abis'
 import { ethers } from 'ethers'
-import { Token } from '../types/token'
+import fetch from 'node-fetch'
 import { TokenInfo } from '@uniswap/token-lists'
 
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
-const FILTER = [
-  false, // Do not include absent items (e.g. items that were rejected or that were accepted but later removed).
-  true, // Include registered items.
-  false, // Do not include items with pending registration requests.
-  true, // Include items with pending removal requests.
-  false, // Do not include items with challenged registration requests.
-  true, // Include items with challenged removal requests.
-]
+import { TokenDecimalsViewABI } from '../abis'
+
+interface TokenFromSubgraph {
+  name: string
+  ticker: string
+  address: string
+  symbolMultihash: string
+}
 
 /**
  * Fetch all tokens from the T2CR.
@@ -20,42 +18,64 @@ export default async function getTokens(
   provider: ethers.providers.JsonRpcProvider,
   chainId: number,
 ): Promise<TokenInfo[]> {
-  // We use a view contract to return token data
+  const response = await fetch(process.env.T2CR_GRAPH_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      query: `
+        query Tokens {
+          tokensA: tokens(first: 1000, where: { status: Registered }) {
+            name
+            ticker
+            address
+            symbolMultihash
+          }
+          tokensB: tokens(where: { status: ClearingRequested }) {
+            name
+            ticker
+            address
+            symbolMultihash
+          }
+        }
+      `,
+    }),
+  })
+
+  const { data } = (await response.json()) || {}
+  const { tokensA, tokensB } = data || {}
+  const tokensFromSubgraph: TokenFromSubgraph[] = tokensA
+    .concat(tokensB)
+    .map((t: TokenFromSubgraph) => ({
+      ...t,
+      address: ethers.utils.getAddress(t.address),
+    }))
+
+  // We use a view contract to return token decimals
   // efficiently.
-  const tokensView = new ethers.Contract(
-    process.env.TOKENS_VIEW_ADDRESS || '',
-    TokensViewABI,
+  const tokensDecimalsView = new ethers.Contract(
+    process.env.TOKEN_DECIMALS_VIEW_ADDRESS || '',
+    TokenDecimalsViewABI,
     provider,
   )
 
-  const count = 300
-  const tokens = new Map()
-  let hasMore = true
-  let cursor = 0
-  while (hasMore) {
-    console.info('Cursor:', cursor)
-    const response = await tokensView.getTokensCursor(
-      process.env.T2CR_ADDRESS || '',
-      cursor, // The token from where to start iterating.
-      count, // Number of items to return at once.
-      FILTER,
+  const tokenDecimals: number[] = (
+    await tokensDecimalsView.getTokenDecimals(
+      tokensFromSubgraph.map((t) => t.address),
     )
+  ).map((d: ethers.BigNumber) => d.toNumber())
 
-    hasMore = response.hasMore
-    const tokensBatch = response.tokens
-      .filter((tokenInfo: Token) => tokenInfo.addr !== ZERO_ADDRESS)
-      .map((token: Token) => ({
-        chainId,
-        address: ethers.utils.getAddress(token.addr),
-        symbol: token.ticker,
-        name: token.name,
-        decimals: token.decimals.toNumber(),
-        logoURI: token.symbolMultihash,
-        tags: [],
-      }))
+  const tokens: Map<string, TokenInfo> = new Map()
+  tokenDecimals.forEach((decimals: number, i: number) => {
+    const token = tokensFromSubgraph[i]
+    tokens.set(token.address, {
+      chainId,
+      address: ethers.utils.getAddress(token.address),
+      symbol: token.ticker,
+      name: token.name,
+      decimals,
+      logoURI: token.symbolMultihash,
+      tags: [],
+    })
+  })
 
-    tokensBatch.forEach((token: TokenInfo) => tokens.set(token.address, token))
-    cursor = cursor + count
-  }
   return Array.from(tokens.values())
 }
