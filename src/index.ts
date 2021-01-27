@@ -47,6 +47,7 @@ async function main() {
     Number(process.env.POLL_PERIOD_SECONDS) || 60 * 1000 // Poll every minute.
 
   // Initialize pinata.cloud if keys were provided.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let pinata: any
   if (process.env.PINATA_API_KEY && process.env.PINATA_SECRET_API_KEY) {
     pinata = pinataSDK(
@@ -283,20 +284,18 @@ async function main() {
   const validatedTokens = latestTokens
     .filter((t) => {
       if (!nameRe.test(t.name)) {
-        console.warn(` Token ${t.name} failed name regex test, dropping it.`)
+        console.warn(` ${t.name} failed name regex test, dropping it.`)
         return false
       }
       if (t.name.length > 40) {
-        console.warn(` Token ${t.name} longer than 40 chars, dropping it.`)
+        console.warn(` ${t.name} longer than 40 chars, dropping it.`)
         return false
       }
       return true
     })
     .filter((t) => {
       if (!tickerRe.test(t.symbol)) {
-        console.warn(
-          ` Token ${t.symbol} failed ticker regex test, dropping it.`,
-        )
+        console.warn(` ${t.symbol} failed ticker regex test, dropping it.`)
         return false
       }
       return true
