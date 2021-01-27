@@ -104,7 +104,7 @@ async function main() {
           `${token.symbol}.png`,
           resizedImageBuffer,
         )
-        console.info(` Uploaded ${token.symbol} image to gateway IPFS.`)
+        console.info(` Done.`)
         break
       } catch (err) {
         console.warn(` Failed to upload ${token.symbol} to gateway IPFS.`, err)
@@ -127,6 +127,7 @@ async function main() {
             `images/${cacheName(token.logoURI, token.symbol)}.png`,
           )
           pinataHash = (await pinata.pinFileToIPFS(readableStream)).IpfsHash
+          console.info(` Done.`)
           break
         } catch (err) {
           console.warn(` Failed to upload ${token.symbol} to pinnata.`, err)
@@ -283,6 +284,10 @@ async function main() {
     .filter((t) => {
       if (!nameRe.test(t.name)) {
         console.warn(` Token ${t.name} failed name regex test, dropping it.`)
+        return false
+      }
+      if (t.name.length > 40) {
+        console.warn(` Token ${t.name} longer than 40 chars, dropping it.`)
         return false
       }
       return true
