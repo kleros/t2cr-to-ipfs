@@ -21,6 +21,7 @@ const validator = ajv.compile(schema)
 
 export default async function checkPublish(
   latestTokens: TokenInfo[],
+  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
   pinata: any,
   provider: ethers.providers.JsonRpcProvider,
   listURL = '',

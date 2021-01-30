@@ -11,7 +11,7 @@
     "start": "ts-node src/index.ts",
     "dev": "ts-node-dev --inspect=4321 --respawn --transpile-only src/index.ts",
     "lint:secrets": "secretlint \"**/*\"",
-    "lint": "eslint 'src/**/*.{js,ts}' --fix && tsc --noEmit && yarn lint:secrets",
+    "lint:fix": "eslint 'src/**/*.{js,ts}' --fix && tsc --noEmit && yarn lint:secrets",
     "release": "standard-version"
   },
   "jest": {
@@ -32,7 +32,7 @@
   },
   "husky": {
     "hooks": {
-      "pre-commit": "yarn lint",
+      "pre-commit": "yarn lint:fix",
       "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
     }
   },
