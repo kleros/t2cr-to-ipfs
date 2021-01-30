@@ -29,7 +29,16 @@ export default async function checkPublish(
 ): Promise<void> {
   const timestamp = new Date().toISOString()
   console.info('Pulling latest token list...')
-  let previousList: TokenList = await (await fetch(listURL)).json()
+
+  let previousList: TokenList = await (
+    await fetch(listURL, {
+      method: 'GET',
+      headers: {
+        pragma: 'no-cache',
+        'cache-control': 'no-cache',
+      },
+    })
+  ).json()
   console.info('Done.')
 
   // Ensure addresses of the fetched lists are normalized.

@@ -267,14 +267,14 @@ async function main() {
   })
 
   // Publish fungible tokens
-  // await checkPublish(
-  //   latestTokens,
-  //   pinata,
-  //   provider,
-  //   process.env.LATEST_TOKEN_LIST_URL,
-  //   process.env.ENS_TOKEN_LIST_NAME,
-  //   'Kleros Tokens',
-  // )
+  await checkPublish(
+    latestTokens,
+    pinata,
+    provider,
+    process.env.LATEST_TOKEN_LIST_URL,
+    process.env.ENS_TOKEN_LIST_NAME,
+    'Kleros Tokens',
+  )
 
   // Publish NFTs
   await checkPublish(
