@@ -1,36 +1,25 @@
 import dotenv from 'dotenv-safe'
 import { ethers } from 'ethers'
-import { TokenList, TokenInfo, schema, Version } from '@uniswap/token-lists'
-import Ajv from 'ajv'
-import { isEqual } from 'lodash'
-import { TextEncoder } from 'util'
+import { TokenInfo } from '@uniswap/token-lists'
 import fetch from 'node-fetch'
 import sharp from 'sharp'
-import { abi as resolverABI } from '@ensdomains/resolver/build/contracts/Resolver.json'
-import namehash from 'eth-ens-namehash'
-import { encode } from 'content-hash'
 import pinataSDK from '@pinata/sdk'
 import { GeneralizedTCR } from '@kleros/gtcr-sdk'
 import fs from 'fs'
 import IpfsOnlyHash from 'ipfs-only-hash'
 
+dotenv.config({ path: '.env' })
+
 import { ERC20ABI } from './abis'
+import { ERC721ABI } from './abis'
 import {
-  getNewVersion,
   ipfsPublish,
   getTokens,
   getAddressesWithBadge,
+  checkPublish,
 } from './utils'
 
-dotenv.config({ path: '.env' })
-
-const ajv = new Ajv({
-  allErrors: true,
-  format: 'full',
-  $data: true,
-  verbose: true,
-})
-const validator = ajv.compile(schema)
+console.info('Starting...')
 
 // We include part of the multihash on the cache filename to avoid
 // outdated files.
@@ -60,7 +49,6 @@ async function main() {
     )
   }
 
-  const timestamp = new Date().toISOString()
   const chainId = (await provider.getNetwork()).chainId
 
   console.info('Fetching tokens...')
@@ -153,16 +141,19 @@ async function main() {
     })
   }
 
-  // The `decimals()` function of the ERC20 standard is optional, so some
+  // The `decimals()` function of the ERC20 standard is optional, and some
   // token contracts (e.g. DigixDAO/DGD) do not implement it.
-  // In this cases, the tokensView.getTokens returns 0 in the decimals
+  // In these cases, the tokensView.getTokens returns 0 in the decimals
   // field of token struct.
   // Additionally, some tokens use a proxy contract (e.g. Synthetix/SNX)
   // which do not play well with the current implementation of the
   // view contract and also return 0 decimals.
   // We'll have to handle them separately as well.
-  // It may also be the case that the number of decimals of the token is 0
-  // so we'll query them individually.
+  // It may also be the case that the number of decimals of the token is
+  // actually 0, so we'll query them individually.
+  //
+  // Well also handle the case where the contract does not implement
+  // the decimals function because it is actually an NFT token.
   const potentiallyMissingDecimals: TokenInfo[] = tokensWithLogo.filter(
     (token: TokenInfo) => token.decimals === 0,
   )
@@ -180,6 +171,7 @@ async function main() {
 
   const tokenDecimals = await gtcr.getItems()
 
+  const nftTokens: TokenInfo[] = []
   for (const checkToken of potentiallyMissingDecimals) {
     try {
       const token = new ethers.Contract(checkToken.address, ERC20ABI, provider)
@@ -191,6 +183,29 @@ async function main() {
       console.warn(
         `${checkToken.symbol}/${checkToken.name} @ ${checkToken.address}, chainId ${chainId} throws when 'decimals' is called with error ${err.message}.`,
       )
+      console.warn(` Checking if it is an NFT`)
+      const nftToken = new ethers.Contract(
+        checkToken.address,
+        ERC721ABI,
+        provider,
+      )
+      let isNFT = false
+      try {
+        const ERC721InterfaceSignature = '0x9a20483d'
+        isNFT = await nftToken.supportsInterface(ERC721InterfaceSignature)
+      } catch (error) {
+        // No-op, handled in finally.
+      } finally {
+        if (isNFT) {
+          console.info(` This is an NFT token, adding it to the list.`)
+          nftTokens.push(checkToken)
+          continue
+        } else
+          console.warn(
+            ` Contract ${checkToken.address} does not implement EIP165`,
+          )
+      }
+
       console.warn(` Attempting to pull from Curate list of token decimals.`)
 
       for (const entry of tokenDecimals) {
@@ -234,7 +249,7 @@ async function main() {
   badges.forEach((badge) => {
     Object.entries(badge).forEach(([name, addresses]) => {
       addresses.forEach((address) => {
-        latestTokens.forEach((t) => {
+        latestTokens.concat(nftTokens).forEach((t) => {
           if (t.address === address) t.tags?.push(name)
         })
       })
@@ -244,134 +259,31 @@ async function main() {
   Object.keys(tags).map((tag) => {
     console.info(
       `Tokens with the ${tag} badge: ${
-        latestTokens.filter((t) => t.tags && t.tags.includes(tag)).length
+        latestTokens
+          .concat(nftTokens)
+          .filter((t) => t.tags && t.tags.includes(tag)).length
       }`,
     )
   })
 
-  console.info('Pulling latest list...')
-  let previousList: TokenList = await (
-    await fetch(process.env.LATEST_LIST_URL || '')
-  ).json()
-  console.info('Done.')
+  // Publish fungible tokens
+  // await checkPublish(
+  //   latestTokens,
+  //   pinata,
+  //   provider,
+  //   process.env.LATEST_TOKEN_LIST_URL,
+  //   process.env.ENS_TOKEN_LIST_NAME,
+  //   'Kleros Tokens',
+  // )
 
-  // Ensure addresses of the fetched lists are normalized.
-  previousList = {
-    ...previousList,
-    tokens: previousList.tokens.map((token) => ({
-      ...token,
-      address: ethers.utils.getAddress(token.address),
-    })),
-  }
-
-  const version: Version = getNewVersion(previousList, latestTokens)
-
-  if (isEqual(previousList.version, version)) {
-    // List did not change. Stop here.
-    console.info('List did not change.')
-    console.info('Latest list can be found at', process.env.LATEST_LIST_URL)
-    return
-  } else {
-    console.info('List changed.')
-  }
-  // Invalid names or tickers should not prevent a new list from being published.
-  const nameRe = new RegExp(
-    schema.definitions.TokenInfo.properties.name.pattern,
-  )
-  const tickerRe = new RegExp(
-    schema.definitions.TokenInfo.properties.symbol.pattern,
-  )
-  const validatedTokens = latestTokens
-    .filter((t) => {
-      if (!nameRe.test(t.name)) {
-        console.warn(` ${t.name} failed name regex test, dropping it.`)
-        return false
-      }
-      if (t.name.length > 40) {
-        console.warn(` ${t.name} longer than 40 chars, dropping it.`)
-        return false
-      }
-      return true
-    })
-    .filter((t) => {
-      if (!tickerRe.test(t.symbol)) {
-        console.warn(` ${t.symbol} failed ticker regex test, dropping it.`)
-        return false
-      }
-      return true
-    })
-
-  // Build the JSON object.
-  const tokenList: TokenList = {
-    name: 'Kleros T2CR',
-    logoURI: 'ipfs://QmRYXpD8X4sQZwA1E4SJvEjVZpEK1WtSrTqzTWvGpZVDwa',
-    keywords: ['t2cr', 'kleros', 'list'],
-    timestamp,
-    version,
-    tags: {
-      erc20: {
-        name: 'ERC20',
-        description: `This token is verified to be ERC20 thus there should not be incompatibility issues with the Uniswap protocol.`,
-      },
-      stablecoin: {
-        name: 'Stablecoin',
-        description: `This token is verified to maintain peg against a target.`,
-      },
-      trueCrypto: {
-        name: 'TrueCrypto',
-        description: `TrueCryptosystem verifies the token is a necessary element of a self sustaining public utility.`,
-      },
-      dutchX: {
-        name: 'DutchX',
-        description: `This token is verified to comply with the DutchX exchange listing criteria.`,
-      },
-    },
-    tokens: validatedTokens,
-  }
-
-  if (!validator(tokenList)) {
-    console.error('Validation errors encountered.')
-    if (validator.errors)
-      validator.errors.map((err) => {
-        console.error(err)
-      })
-    throw new Error(`Could not validate generated list ${tokenList}`)
-  }
-
-  console.info('Uploading to IPFS...')
-  const data = new TextEncoder().encode(JSON.stringify(tokenList, null, 2))
-  const ipfsResponse = await ipfsPublish('t2cr.tokenlist.json', data)
-  const contentHash = ipfsResponse[0].hash
-  console.info(`Done. ${process.env.IPFS_GATEWAY}/ipfs/${contentHash}`)
-
-  if (pinata) {
-    console.info('Pinning list in pinata.cloud...')
-    await pinata.pinByHash(contentHash)
-    console.info('Done.')
-  }
-
-  // As of v5.0.5, Ethers ENS API doesn't include managing ENS names, so we
-  // can't use it directly. Neither does the ethjs API.
-  // Web3js supports it via web3.eth.ens but it can't sign transactions
-  // locally and send them via eth_sendRawTransaction, which means it can't
-  // be used with Ethereum endpoints that don't support
-  // eth_sendTransaction (e.g. Infura). We'll have to interact with the
-  // contracts directly.
-  const signer = new ethers.Wallet(process.env.WALLET_KEY || '', provider)
-  const ensName = namehash.normalize(process.env.ENS_LIST_NAME || '')
-  const resolver = new ethers.Contract(
-    await provider._getResolver(ensName),
-    resolverABI,
-    signer,
-  )
-  const ensNamehash = namehash.hash(ensName)
-  const encodedContentHash = `0x${encode('ipfs-ns', contentHash)}`
-  console.info()
-  console.info('Updating ens entry...')
-  console.info(`Manager: ${await signer.getAddress()}`)
-  await resolver.setContenthash(ensNamehash, encodedContentHash)
-  console.info(
-    `Done. List available at ${process.env.IPFS_GATEWAY}/ipfs/${contentHash}`,
+  // Publish NFTs
+  await checkPublish(
+    nftTokens,
+    pinata,
+    provider,
+    process.env.LATEST_NFT_LIST_URL,
+    process.env.ENS_NFT_LIST_NAME,
+    'Kleros NFTs',
   )
 }
 

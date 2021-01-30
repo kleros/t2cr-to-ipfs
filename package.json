@@ -2,17 +2,14 @@
   "name": "t2cr-to-ipfs",
   "version": "0.1.1",
   "description": "Pulls token information from the kleros t2cr and publishes them to ipfs following uniswap/token-lists schema.",
-  "main": "dist",
+  "main": "src/index.ts",
   "repository": "git+https://github.com/kleros/t2cr-to-ipfs",
   "author": "Kleros",
   "license": "MIT",
   "private": false,
   "scripts": {
-    "start": "yarn build && node dist",
-    "dev": "concurrently \"tsc -w\" \"nodemon dist/index.js\"",
-    "build": "rimraf dist && tsc",
-    "production": "yarn build && node dist",
-    "test": "jest",
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --inspect=4321 --respawn --transpile-only src/index.ts",
     "lint:secrets": "secretlint \"**/*\"",
     "lint": "eslint 'src/**/*.{js,ts}' --fix && tsc --noEmit && yarn lint:secrets",
     "release": "standard-version"
@@ -59,6 +56,8 @@
     "secretlint": "^2.1.0",
     "standard-version": "^8.0.1",
     "ts-jest": "^26.1.2",
+    "ts-node": "^9.1.1",
+    "ts-node-dev": "^1.1.1",
     "typescript": "^3.9.6"
   },
   "dependencies": {
@@ -74,7 +73,7 @@
     "content-hash": "^2.5.2",
     "dotenv-safe": "^8.2.0",
     "eth-ens-namehash": "^2.0.8",
-    "ethers": "^5.0.5",
+    "ethers": "^5.0.26",
     "ipfs-only-hash": "^2.0.1",
     "lodash": "^4.17.19",
     "node-fetch": "^2.6.0",

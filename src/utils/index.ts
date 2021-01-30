@@ -1,6 +1,5 @@
-import getNewVersion from './get-new-version'
-import ipfsPublish from './ipfs-publish'
-import getAddressesWithBadge from './get-addresses-with-badge'
-import getTokens from './get-tokens'
-
-export { getNewVersion, ipfsPublish, getAddressesWithBadge, getTokens }
+export { default as getNewVersion } from './get-new-version'
+export { default as ipfsPublish } from './ipfs-publish'
+export { default as getAddressesWithBadge } from './get-addresses-with-badge'
+export { default as getTokens } from './get-tokens'
+export { default as checkPublish } from './check-publish'

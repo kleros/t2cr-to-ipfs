@@ -1,6 +1,5 @@
-import BadgeABI from './badge'
-import TokensViewABI from './tokens-view'
-import ERC20ABI from './erc20'
-import TokenDecimalsViewABI from './token-decimals-view'
-
-export { BadgeABI, TokensViewABI, ERC20ABI, TokenDecimalsViewABI }
+export { default as BadgeABI } from './badge'
+export { default as TokensViewABI } from './tokens-view'
+export { default as ERC20ABI } from './erc20'
+export { default as TokenDecimalsViewABI } from './token-decimals-view'
+export { default as ERC721ABI } from './erc721'
