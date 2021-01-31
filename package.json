@@ -8,7 +8,7 @@
   "license": "MIT",
   "private": false,
   "scripts": {
-    "start": "ts-node src/index.ts",
+    "start": "ts-node --files src/index.ts",
     "dev": "ts-node-dev --inspect=4321 --respawn --transpile-only src/index.ts",
     "lint:secrets": "secretlint \"**/*\"",
     "lint:fix": "eslint 'src/**/*.{js,ts}' --fix && tsc --noEmit && yarn lint:secrets",
