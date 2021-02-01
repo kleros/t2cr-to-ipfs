@@ -27,9 +27,10 @@ export default async function checkPublish(
   listURL = '',
   ensListName = '',
   listName: string,
+  fileName: string,
 ): Promise<void> {
   const timestamp = new Date().toISOString()
-  console.info('Pulling latest token list...')
+  console.info('Pulling latest list...')
 
   let previousList: TokenList = await (
     await fetch(listURL, {
@@ -102,7 +103,7 @@ export default async function checkPublish(
 
   // Build the JSON object.
   const tokenList: TokenList = {
-    name: listName,
+    name: `Kleros ${listName}`,
     logoURI: 'ipfs://QmRYXpD8X4sQZwA1E4SJvEjVZpEK1WtSrTqzTWvGpZVDwa',
     keywords: ['t2cr', 'kleros', 'list'],
     timestamp,
@@ -139,7 +140,7 @@ export default async function checkPublish(
 
   console.info('Uploading to IPFS...')
   const data = new TextEncoder().encode(JSON.stringify(tokenList, null, 2))
-  const ipfsResponse = await ipfsPublish('t2cr.tokenlist.json', data)
+  const ipfsResponse = await ipfsPublish(fileName, data)
   const contentHash = ipfsResponse[0].hash
   console.info(`Done. ${process.env.IPFS_GATEWAY}/ipfs/${contentHash}`)
 
@@ -159,12 +160,14 @@ export default async function checkPublish(
   // We'll have to interact with the contracts directly.
   const signer = new ethers.Wallet(process.env.WALLET_KEY || '', provider)
   const ensName = namehash.normalize(ensListName)
+  const ensNamehash = namehash.hash(ensName)
+
   const resolver = new ethers.Contract(
     await provider._getResolver(ensName),
     resolverABI,
     signer,
   )
-  const ensNamehash = namehash.hash(ensName)
+
   const encodedContentHash = `0x${encode('ipfs-ns', contentHash)}`
   console.info()
   console.info('Updating ens entry...')

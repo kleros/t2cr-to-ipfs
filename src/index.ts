@@ -64,8 +64,6 @@ async function main() {
   for (const token of fetchedTokens) {
     console.info(`${++i} of ${fetchedTokens.length}`)
     if (fs.existsSync(`images/${cacheName(token.logoURI, token.symbol)}.png`)) {
-      console.info('Image available on cache.')
-
       const multihash = await IpfsOnlyHash.of(
         fs.readFileSync(`images/${cacheName(token.logoURI, token.symbol)}.png`),
       )
@@ -273,7 +271,8 @@ async function main() {
     provider,
     process.env.LATEST_TOKEN_LIST_URL,
     process.env.ENS_TOKEN_LIST_NAME,
-    'Kleros Tokens',
+    'Tokens',
+    't2cr.tokenlist.json',
   )
 
   // Publish NFTs
@@ -283,7 +282,8 @@ async function main() {
     provider,
     process.env.LATEST_NFT_LIST_URL,
     process.env.ENS_NFT_LIST_NAME,
-    'Kleros NFTs',
+    'NFTs',
+    't2crnfts.tokenlist.json',
   )
 }
 
