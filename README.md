@@ -20,23 +20,16 @@ If developing in VS Code/Codium, you can use this `.vscode/launch.json` file for
 
 ```
 {
-  // Use IntelliSense to learn about possible attributes.
-  // Hover to view descriptions of existing attributes.
-  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
     {
       "type": "node",
-      "request": "launch",
-      "name": "Launch Program",
-      "preLaunchTask": "${defaultBuildTask}",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
-      "program": "${workspaceFolder}/dist",
-      "outFiles": [
-        "${workspaceFolder}/**/*.js"
-      ]
+      "request": "attach",
+      "name": "Attach to dev:debug",
+      "protocol": "inspector",
+      "port": 4321,
+      "restart": true,
+      "cwd": "${workspaceRoot}"
     }
   ]
 }

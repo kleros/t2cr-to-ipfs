@@ -4,20 +4,18 @@ import { TokenInfo } from '@uniswap/token-lists'
 import fetch from 'node-fetch'
 import sharp from 'sharp'
 import pinataSDK from '@pinata/sdk'
-import { GeneralizedTCR } from '@kleros/gtcr-sdk'
 import fs from 'fs'
 import IpfsOnlyHash from 'ipfs-only-hash'
+import { CollectibleInfo } from '@0xsequence/collectible-lists'
+import { GeneralizedTCR } from '@kleros/gtcr-sdk'
 
 dotenv.config({ path: '.env' })
 
 import { ERC20ABI } from './abis'
 import { ERC721ABI } from './abis'
-import {
-  ipfsPublish,
-  getTokens,
-  getAddressesWithBadge,
-  checkPublish,
-} from './utils'
+import { ipfsPublish, getTokens, getAddressesWithBadge } from './utils'
+import checkPublishErc20 from './erc20'
+import checkPublishNFT from './nft'
 
 console.info('Starting...')
 
@@ -169,7 +167,7 @@ async function main() {
 
   const tokenDecimals = await gtcr.getItems()
 
-  const nftTokens: TokenInfo[] = []
+  const nftTokens: CollectibleInfo[] = []
   for (const checkToken of potentiallyMissingDecimals) {
     try {
       const token = new ethers.Contract(checkToken.address, ERC20ABI, provider)
@@ -187,16 +185,32 @@ async function main() {
         ERC721ABI,
         provider,
       )
-      let isNFT = false
+      let is721 = false
+      let is1155 = false
       try {
         const ERC721InterfaceSignature = '0x9a20483d'
-        isNFT = await nftToken.supportsInterface(ERC721InterfaceSignature)
+        const ERC1155InterfaceSignature = '0xd9b67a26'
+        const res = await Promise.all([
+          nftToken.supportsInterface(ERC721InterfaceSignature),
+          nftToken.supportsInterface(ERC1155InterfaceSignature),
+        ])
+
+        is721 = res[0]
+        is1155 = res[1]
       } catch (error) {
         // No-op, handled in finally.
       } finally {
-        if (isNFT) {
-          console.info(` This is an NFT token, adding it to the list.`)
-          nftTokens.push(checkToken)
+        if (is721) {
+          console.info(` This is an ERC721 token, adding it to the list.`)
+          const nft = { ...checkToken, standard: 'erc721' } as any
+          delete nft.decimals
+          nftTokens.push(nft)
+          continue
+        } else if (is1155) {
+          console.info(` This is an ERC1155 token, adding it to the list.`)
+          const nft = { ...checkToken, standard: 'erc1155' } as any
+          delete nft.decimals
+          nftTokens.push(nft)
           continue
         } else
           console.warn(
@@ -217,11 +231,11 @@ async function main() {
 
         latestTokens.push({
           ...checkToken,
-          decimals: entry.decodedData[1].toNumber(),
+          decimals: Number(entry.decodedData[1]),
         })
         console.info(' |')
         console.info(
-          `  --Got decimal places from list: ${entry.decodedData[1].toNumber()}`,
+          `  --Got decimal places from list: ${Number(entry.decodedData[1])}`,
         )
         break
       }
@@ -247,8 +261,13 @@ async function main() {
   badges.forEach((badge) => {
     Object.entries(badge).forEach(([name, addresses]) => {
       addresses.forEach((address) => {
-        latestTokens.concat(nftTokens).forEach((t) => {
-          if (t.address === address) t.tags?.push(name)
+        latestTokens.concat(latestTokens).forEach((t) => {
+          if (t.address === address && !t.tags?.includes(name))
+            t.tags?.push(name)
+        })
+        nftTokens.concat(nftTokens).forEach((t) => {
+          if (t.address === address && !t.tags?.includes(name))
+            t.tags?.push(name)
         })
       })
     })
@@ -258,14 +277,14 @@ async function main() {
     console.info(
       `Tokens with the ${tag} badge: ${
         latestTokens
-          .concat(nftTokens)
+          .concat(latestTokens)
           .filter((t) => t.tags && t.tags.includes(tag)).length
       }`,
     )
   })
 
   // Publish fungible tokens
-  await checkPublish(
+  await checkPublishErc20(
     latestTokens,
     pinata,
     provider,
@@ -276,7 +295,7 @@ async function main() {
   )
 
   // Publish NFTs
-  await checkPublish(
+  await checkPublishNFT(
     nftTokens,
     pinata,
     provider,

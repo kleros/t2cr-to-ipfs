@@ -1,4 +1,9 @@
-import { schema, TokenInfo, TokenList, Version } from '@uniswap/token-lists'
+import {
+  schema,
+  CollectibleInfo,
+  CollectibleList,
+  Version,
+} from '@0xsequence/collectible-lists'
 import { isEqual } from 'lodash'
 import { ethers } from 'ethers'
 import Ajv from 'ajv'
@@ -8,7 +13,8 @@ import fetch from 'node-fetch'
 import { TextEncoder } from 'util'
 import { abi as resolverABI } from '@ensdomains/resolver/build/contracts/Resolver.json'
 
-import { getNewVersion, ipfsPublish } from '.'
+import { ipfsPublish } from './utils'
+import { getNewNFTListVersion } from './versioning'
 
 const ajv = new Ajv({
   allErrors: true,
@@ -19,8 +25,8 @@ const ajv = new Ajv({
 
 const validator = ajv.compile(schema)
 
-export default async function checkPublish(
-  latestTokens: TokenInfo[],
+export default async function checkPublishNFT(
+  latestTokens: CollectibleInfo[],
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
   pinata: any,
   provider: ethers.providers.JsonRpcProvider,
@@ -30,9 +36,9 @@ export default async function checkPublish(
   fileName: string,
 ): Promise<void> {
   const timestamp = new Date().toISOString()
-  console.info('Pulling latest list...')
+  console.info(`Pulling latest list from ${listURL}`)
 
-  let previousList: TokenList = await (
+  let previousList: CollectibleList = await (
     await fetch(listURL, {
       method: 'GET',
       headers: {
@@ -59,7 +65,7 @@ export default async function checkPublish(
   const tickerRe = new RegExp(
     schema.definitions.TokenInfo.properties.symbol.pattern,
   )
-  const invalidTokens: TokenInfo[] = []
+  const invalidTokens: CollectibleInfo[] = []
   const validatedTokens = latestTokens
     .filter((t) => {
       if (!nameRe.test(t.name)) {
@@ -83,7 +89,7 @@ export default async function checkPublish(
       return true
     })
 
-  const version: Version = getNewVersion(
+  const version: Version = getNewNFTListVersion(
     previousList,
     latestTokens,
     invalidTokens,
@@ -102,7 +108,7 @@ export default async function checkPublish(
   }
 
   // Build the JSON object.
-  const tokenList: TokenList = {
+  const tokenList: CollectibleList = {
     name: `Kleros ${listName}`,
     logoURI: 'ipfs://QmRYXpD8X4sQZwA1E4SJvEjVZpEK1WtSrTqzTWvGpZVDwa',
     keywords: ['t2cr', 'kleros', 'list'],
