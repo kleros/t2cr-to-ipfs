@@ -70,6 +70,7 @@ export default async function checkPublishErc20(
       }
       if (t.name.length > 40) {
         console.warn(` ${t.name} longer than 40 chars, dropping it.`)
+        console.warn(` Address: ${t.address}`)
         invalidTokens.push(t)
         return false
       }
