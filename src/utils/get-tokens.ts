@@ -18,18 +18,59 @@ export default async function getTokens(
   provider: ethers.providers.JsonRpcProvider,
   chainId: number,
 ): Promise<TokenInfo[]> {
-  const response = await fetch(process.env.T2CR_GRAPH_URL, {
+  const registryResponse = await fetch(process.env.T2CR_GRAPH_URL, {
     method: 'POST',
     body: JSON.stringify({
       query: `
-        query Tokens {
-          tokensA: tokens(first: 1000, where: { status: Registered }) {
-            name
-            ticker
-            address
-            symbolMultihash
+        {
+          registries {
+            numberOfSubmissions
           }
-          tokensB: tokens(where: { status: ClearingRequested }) {
+        }
+      `,
+    }),
+  })
+
+  const {
+    data: { registries },
+  } = (await registryResponse.json()) || {}
+  const registry = registries[0]
+  const { numberOfSubmissions } = registry
+  const rounds = Math.ceil(numberOfSubmissions / 1000)
+
+  let tokensFromSubgraph: TokenFromSubgraph[] = []
+
+  for (let i = 0; i < rounds; i++) {
+    const registeredResponse = await fetch(process.env.T2CR_GRAPH_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        query: `
+          {
+            tokens(skip: ${
+              i * 1000
+            }, first: 1000, where: { status: Registered }) {
+              name
+              ticker
+              address
+              symbolMultihash
+            }
+          }
+        `,
+      }),
+    })
+
+    const {
+      data: { tokens: registeredTokens },
+    } = (await registeredResponse.json()) || {}
+    tokensFromSubgraph = tokensFromSubgraph.concat(registeredTokens)
+  }
+
+  const clearingRequestedResponse = await fetch(process.env.T2CR_GRAPH_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      query: `
+        {
+          tokens(where: { status: ClearingRequested }) {
             name
             ticker
             address
@@ -39,15 +80,14 @@ export default async function getTokens(
       `,
     }),
   })
-
-  const { data } = (await response.json()) || {}
-  const { tokensA, tokensB } = data || {}
-  const tokensFromSubgraph: TokenFromSubgraph[] = tokensA
-    .concat(tokensB)
-    .map((t: TokenFromSubgraph) => ({
-      ...t,
-      address: ethers.utils.getAddress(t.address),
-    }))
+  const {
+    data: { tokens: clearingRequestedTokens },
+  } = (await clearingRequestedResponse.json()) || {}
+  tokensFromSubgraph = tokensFromSubgraph.concat(clearingRequestedTokens)
+  tokensFromSubgraph = tokensFromSubgraph.map((t: TokenFromSubgraph) => ({
+    ...t,
+    address: ethers.utils.getAddress(t.address),
+  }))
 
   // We use a view contract to return token decimals
   // efficiently.
