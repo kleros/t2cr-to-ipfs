@@ -43,8 +43,8 @@
     "@secretlint/secretlint-rule-preset-recommend": "^2.1.0",
     "@secretlint/secretlint-rule-secp256k1-privatekey": "^2.1.0",
     "@types/jest": "^26.0.4",
-    "@typescript-eslint/eslint-plugin": "^3.6.0",
-    "@typescript-eslint/parser": "^3.6.0",
+    "@typescript-eslint/eslint-plugin": "^5.41.0",
+    "@typescript-eslint/parser": "^5.41.0",
     "concurrently": "^5.2.0",
     "eslint": "^7.4.0",
     "eslint-config-prettier": "^6.11.0",
@@ -59,7 +59,7 @@
     "ts-jest": "^26.1.2",
     "ts-node": "^9.1.1",
     "ts-node-dev": "^1.1.1",
-    "typescript": "^3.9.6"
+    "typescript": "^4.8.4"
   },
   "dependencies": {
     "@0xsequence/collectible-lists": "^1.1.0",
@@ -71,7 +71,8 @@
     "@types/node-fetch": "^2.5.7",
     "@types/sharp": "^0.25.0",
     "@uniswap/token-lists": "^1.0.0-beta.17",
-    "ajv": "^6.12.3",
+    "ajv": "^8.11.0",
+    "ajv-formats": "^2.1.1",
     "content-hash": "^2.5.2",
     "dotenv-safe": "^8.2.0",
     "eth-ens-namehash": "^2.0.8",
