@@ -1,24 +1,15 @@
 import { schema, TokenInfo, TokenList, Version } from '@uniswap/token-lists'
 import { isEqual } from 'lodash'
 import { ethers } from 'ethers'
-import Ajv from 'ajv'
 import namehash from 'eth-ens-namehash'
 import { encode } from 'content-hash'
 import fetch from 'node-fetch'
 import { TextEncoder } from 'util'
 import { abi as resolverABI } from '@ensdomains/resolver/build/contracts/Resolver.json'
+import { validateCollectibleList } from './utils/validate-collectible-list'
 
 import { ipfsPublish } from './utils'
 import { getNewErc20ListVersion } from './versioning'
-
-const ajv = new Ajv({
-  allErrors: true,
-  format: 'full',
-  $data: true,
-  verbose: true,
-})
-
-const validator = ajv.compile(schema)
 
 export default async function checkPublishErc20(
   latestTokens: TokenInfo[],
@@ -32,7 +23,7 @@ export default async function checkPublishErc20(
 ): Promise<void> {
   const timestamp = new Date().toISOString()
   console.info(`Pulling latest list from ${listURL}`)
-
+  console.log({ schema })
   let previousList: TokenList = await (
     await fetch(listURL, {
       method: 'GET',
@@ -131,14 +122,7 @@ export default async function checkPublishErc20(
     tokens: validatedTokens,
   }
 
-  if (!validator(tokenList)) {
-    console.error('Validation errors encountered.')
-    if (validator.errors)
-      validator.errors.map((err: unknown) => {
-        console.error(err)
-      })
-    throw new Error(`Could not validate generated list ${tokenList}`)
-  }
+  validateCollectibleList(schema, tokenList)
 
   console.info('Uploading to IPFS...')
   const data = new TextEncoder().encode(JSON.stringify(tokenList, null, 2))

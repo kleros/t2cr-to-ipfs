@@ -6,7 +6,6 @@ import {
 } from '@0xsequence/collectible-lists'
 import { isEqual } from 'lodash'
 import { ethers } from 'ethers'
-import Ajv from 'ajv'
 import namehash from 'eth-ens-namehash'
 import { encode } from 'content-hash'
 import fetch from 'node-fetch'
@@ -15,15 +14,7 @@ import { abi as resolverABI } from '@ensdomains/resolver/build/contracts/Resolve
 
 import { ipfsPublish } from './utils'
 import { getNewNFTListVersion } from './versioning'
-
-const ajv = new Ajv({
-  allErrors: true,
-  format: 'full',
-  $data: true,
-  verbose: true,
-})
-
-const validator = ajv.compile(schema)
+import { validateCollectibleList } from './utils/validate-collectible-list'
 
 export default async function checkPublishNFT(
   latestTokens: CollectibleInfo[],
@@ -135,14 +126,7 @@ export default async function checkPublishNFT(
     tokens: validatedTokens,
   }
 
-  if (!validator(tokenList)) {
-    console.error('Validation errors encountered.')
-    if (validator.errors)
-      validator.errors.map((err: unknown) => {
-        console.error(err)
-      })
-    throw new Error(`Could not validate generated list ${tokenList}`)
-  }
+  validateCollectibleList(schema, tokenList)
 
   console.info('Uploading to IPFS...')
   const data = new TextEncoder().encode(JSON.stringify(tokenList, null, 2))
