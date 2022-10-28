@@ -9,7 +9,7 @@ import IpfsOnlyHash from 'ipfs-only-hash'
 import { CollectibleInfo } from '@0xsequence/collectible-lists'
 import { GeneralizedTCR } from '@kleros/gtcr-sdk'
 
-dotenv.config({ path: '.env' })
+dotenv.config({ path: '.env', allowEmptyValues: true })
 
 import { ERC20ABI } from './abis'
 import { ERC721ABI } from './abis'
@@ -176,9 +176,13 @@ async function main() {
         decimals: Number(await token.decimals()),
       })
     } catch (err) {
-      console.warn(
-        `${checkToken.symbol}/${checkToken.name} @ ${checkToken.address}, chainId ${chainId} throws when 'decimals' is called with error ${err.message}.`,
-      )
+      if (err instanceof Error) {
+        console.warn(
+          `${checkToken.symbol}/${checkToken.name} @ ${checkToken.address}, chainId ${chainId} throws when 'decimals' is called with error ${err.message}.`,
+        )
+      } else {
+        console.warn('Unexpected error', err)
+      }
       console.warn(` Checking if it is an NFT`)
       const nftToken = new ethers.Contract(
         checkToken.address,
@@ -202,12 +206,14 @@ async function main() {
       } finally {
         if (is721) {
           console.info(` This is an ERC721 token, adding it to the list.`)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const nft = { ...checkToken, standard: 'erc721' } as any
           delete nft.decimals
           nftTokens.push(nft)
           continue
         } else if (is1155) {
           console.info(` This is an ERC1155 token, adding it to the list.`)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const nft = { ...checkToken, standard: 'erc1155' } as any
           delete nft.decimals
           nftTokens.push(nft)
