@@ -3,6 +3,7 @@ import {
   CollectibleInfo,
 } from '@0xsequence/collectible-lists/dist/types'
 import { TokenList, Version, TokenInfo } from '@uniswap/token-lists/dist/types'
+import fetch from 'node-fetch'
 
 type CollectibleOrTokenList<
   T extends CollectibleInfo[] | TokenInfo[]
@@ -40,4 +41,16 @@ export const generateTokenList = <T extends CollectibleInfo[] | TokenInfo[]>(
     },
     tokens: validatedTokens,
   } as any
+}
+
+export const fetchList = async <T>(url: string): Promise<T> => {
+  return await (
+    await fetch(url, {
+      method: 'GET',
+      headers: {
+        pragma: 'no-cache',
+        'cache-control': 'no-cache',
+      },
+    })
+  ).json()
 }
