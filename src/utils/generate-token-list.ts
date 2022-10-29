@@ -4,7 +4,7 @@ import {
 } from '@0xsequence/collectible-lists/dist/types'
 import { TokenList, Version, TokenInfo } from '@uniswap/token-lists/dist/types'
 
-type CollectibleOrList<
+type CollectibleOrTokenList<
   T extends CollectibleInfo[] | TokenInfo[]
 > = T extends CollectibleInfo[] ? CollectibleList : TokenList
 
@@ -13,7 +13,7 @@ export const generateTokenList = <T extends CollectibleInfo[] | TokenInfo[]>(
   timestamp: string,
   version: Version,
   validatedTokens: T,
-): CollectibleOrList<T> => {
+): CollectibleOrTokenList<T> => {
   return {
     name: `Kleros ${listName}`,
     logoURI: 'ipfs://QmRYXpD8X4sQZwA1E4SJvEjVZpEK1WtSrTqzTWvGpZVDwa',
