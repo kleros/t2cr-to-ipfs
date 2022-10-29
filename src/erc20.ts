@@ -10,6 +10,7 @@ import { validateCollectibleList } from './utils/validate-collectible-list'
 
 import { ipfsPublish } from './utils'
 import { getNewErc20ListVersion } from './versioning'
+import { generateTokenList } from './utils/generate-token-list'
 
 export default async function checkPublishErc20(
   latestTokens: TokenInfo[],
@@ -23,7 +24,7 @@ export default async function checkPublishErc20(
 ): Promise<void> {
   const timestamp = new Date().toISOString()
   console.info(`Pulling latest list from ${listURL}`)
-  console.log({ schema })
+
   let previousList: TokenList = await (
     await fetch(listURL, {
       method: 'GET',
@@ -95,32 +96,12 @@ export default async function checkPublishErc20(
   }
 
   // Build the JSON object.
-  const tokenList: TokenList = {
-    name: `Kleros ${listName}`,
-    logoURI: 'ipfs://QmRYXpD8X4sQZwA1E4SJvEjVZpEK1WtSrTqzTWvGpZVDwa',
-    keywords: ['t2cr', 'kleros', 'list'],
+  const tokenList: TokenList = generateTokenList(
+    listName,
     timestamp,
     version,
-    tags: {
-      erc20: {
-        name: 'ERC20',
-        description: `This token is verified to be ERC20 thus there should not be incompatibility issues with the Uniswap protocol.`,
-      },
-      stablecoin: {
-        name: 'Stablecoin',
-        description: `This token is verified to maintain peg against a target.`,
-      },
-      trueCrypto: {
-        name: 'TrueCrypto',
-        description: `TrueCryptosystem verifies the token is a necessary element of a self sustaining public utility.`,
-      },
-      dutchX: {
-        name: 'DutchX',
-        description: `This token is verified to comply with the DutchX exchange listing criteria.`,
-      },
-    },
-    tokens: validatedTokens,
-  }
+    validatedTokens,
+  )
 
   validateCollectibleList(schema, tokenList)
 

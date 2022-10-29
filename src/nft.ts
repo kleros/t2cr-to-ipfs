@@ -15,6 +15,7 @@ import { abi as resolverABI } from '@ensdomains/resolver/build/contracts/Resolve
 import { ipfsPublish } from './utils'
 import { getNewNFTListVersion } from './versioning'
 import { validateCollectibleList } from './utils/validate-collectible-list'
+import { generateTokenList } from './utils/generate-token-list'
 
 export default async function checkPublishNFT(
   latestTokens: CollectibleInfo[],
@@ -99,32 +100,12 @@ export default async function checkPublishNFT(
   }
 
   // Build the JSON object.
-  const tokenList: CollectibleList = {
-    name: `Kleros ${listName}`,
-    logoURI: 'ipfs://QmRYXpD8X4sQZwA1E4SJvEjVZpEK1WtSrTqzTWvGpZVDwa',
-    keywords: ['t2cr', 'kleros', 'list'],
+  const tokenList: CollectibleList = generateTokenList(
+    listName,
     timestamp,
     version,
-    tags: {
-      erc20: {
-        name: 'ERC20',
-        description: `This token is verified to be ERC20 thus there should not be incompatibility issues with the Uniswap protocol.`,
-      },
-      stablecoin: {
-        name: 'Stablecoin',
-        description: `This token is verified to maintain peg against a target.`,
-      },
-      trueCrypto: {
-        name: 'TrueCrypto',
-        description: `TrueCryptosystem verifies the token is a necessary element of a self sustaining public utility.`,
-      },
-      dutchX: {
-        name: 'DutchX',
-        description: `This token is verified to comply with the DutchX exchange listing criteria.`,
-      },
-    },
-    tokens: validatedTokens,
-  }
+    validatedTokens,
+  )
 
   validateCollectibleList(schema, tokenList)
 
