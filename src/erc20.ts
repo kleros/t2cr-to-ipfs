@@ -10,6 +10,7 @@ import { validateCollectibleList } from './utils/validate-collectible-list'
 import { ipfsPublish } from './utils'
 import { getNewErc20ListVersion } from './versioning'
 import { fetchList, generateTokenList } from './utils/generate-token-list'
+import { getContractInstance } from './utils/get-contract-instance'
 
 export default async function checkPublishErc20(
   latestTokens: TokenInfo[],
@@ -115,14 +116,13 @@ export default async function checkPublishErc20(
   // eth_sendTransaction (e.g. Infura).
   //
   // We'll have to interact with the contracts directly.
-  const signer = new ethers.Wallet(process.env.WALLET_KEY || '', provider)
   const ensName = namehash.normalize(ensListName)
   const ensNamehash = namehash.hash(ensName)
 
-  const resolver = new ethers.Contract(
-    await provider._getResolver(ensName),
+  const [signer, resolver] = await getContractInstance(
+    ensName,
     resolverABI,
-    signer,
+    provider,
   )
 
   const encodedContentHash = `0x${encode('ipfs-ns', contentHash)}`

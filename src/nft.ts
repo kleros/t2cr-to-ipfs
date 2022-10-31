@@ -15,10 +15,10 @@ import { ipfsPublish } from './utils'
 import { getNewNFTListVersion } from './versioning'
 import { validateCollectibleList } from './utils/validate-collectible-list'
 import { fetchList, generateTokenList } from './utils/generate-token-list'
+import { getContractInstance } from './utils/get-contract-instance'
 
 export default async function checkPublishNFT(
   latestTokens: CollectibleInfo[],
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
   pinata: any,
   provider: ethers.providers.JsonRpcProvider,
   listURL = '',
@@ -120,14 +120,14 @@ export default async function checkPublishNFT(
   // eth_sendTransaction (e.g. Infura).
   //
   // We'll have to interact with the contracts directly.
-  const signer = new ethers.Wallet(process.env.WALLET_KEY || '', provider)
+  //const signer = new ethers.Wallet(process.env.WALLET_KEY || '', provider)
   const ensName = namehash.normalize(ensListName)
   const ensNamehash = namehash.hash(ensName)
 
-  const resolver = new ethers.Contract(
-    await provider._getResolver(ensName),
+  const [signer, resolver] = await getContractInstance(
+    ensName,
     resolverABI,
-    signer,
+    provider,
   )
 
   const encodedContentHash = `0x${encode('ipfs-ns', contentHash)}`
