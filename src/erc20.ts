@@ -12,7 +12,6 @@ import { updateEnsEntry } from './utils/update-ens-entry'
 
 export default async function checkPublishErc20(
   latestTokens: TokenInfo[],
-  pinata: any,
   provider: ethers.providers.JsonRpcProvider,
   listURL = '',
   ensListName = '',
@@ -99,12 +98,6 @@ export default async function checkPublishErc20(
   const ipfsResponse = await ipfsPublish(fileName, data)
   const contentHash = ipfsResponse[0].hash
   console.info(`Done. ${process.env.IPFS_GATEWAY}/ipfs/${contentHash}`)
-
-  if (pinata) {
-    console.info('Pinning list in pinata.cloud...')
-    await pinata.pinByHash(contentHash)
-    console.info('Done.')
-  }
 
   await updateEnsEntry(ensListName, contentHash, resolverABI, provider)
 }
