@@ -1,28 +1,20 @@
 import dotenv from 'dotenv-safe'
+dotenv.config({ path: '.env', allowEmptyValues: true })
+
 import { ethers } from 'ethers'
 import { TokenInfo } from '@uniswap/token-lists'
-import fetch from 'node-fetch'
-import sharp from 'sharp'
-import pinataSDK from '@pinata/sdk'
-import fs from 'fs'
-import IpfsOnlyHash from 'ipfs-only-hash'
+import axios from 'axios'
+
 import { CollectibleInfo } from '@0xsequence/collectible-lists'
 import { GeneralizedTCR } from '@kleros/gtcr-sdk'
 
-dotenv.config({ path: '.env', allowEmptyValues: true })
-
 import { ERC20ABI } from './abis'
 import { ERC721ABI } from './abis'
-import { ipfsPublish, getTokens, getAddressesWithBadge } from './utils'
+import { estuaryRequest, getTokens, getAddressesWithBadge } from './utils'
 import checkPublishErc20 from './erc20'
 import checkPublishNFT from './nft'
 
 console.info('Starting...')
-
-// We include part of the multihash on the cache filename to avoid
-// outdated files.
-const cacheName = (multihash: string | undefined, symbol: string) =>
-  multihash ? `${symbol}-` + multihash.slice(-10).replace('/', '-') : ''
 
 async function main() {
   console.info()
@@ -32,20 +24,6 @@ async function main() {
   )
   provider.pollingInterval =
     Number(process.env.POLL_PERIOD_SECONDS) || 60 * 1000 // Poll every minute.
-
-  // Initialize pinata.cloud if keys were provided.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let pinata: any
-  if (process.env.PINATA_API_KEY && process.env.PINATA_SECRET_API_KEY) {
-    pinata = pinataSDK(
-      process.env.PINATA_API_KEY,
-      process.env.PINATA_SECRET_API_KEY,
-    )
-    console.info(
-      'Pinata authentication test',
-      await pinata.testAuthentication(),
-    )
-  }
 
   const chainId = (await provider.getNetwork()).chainId
 
@@ -61,33 +39,22 @@ async function main() {
   const tokensWithLogo: TokenInfo[] = []
   for (const token of fetchedTokens) {
     console.info(`${++i} of ${fetchedTokens.length}`)
-    if (fs.existsSync(`images/${cacheName(token.logoURI, token.symbol)}.png`)) {
-      const multihash = await IpfsOnlyHash.of(
-        fs.readFileSync(`images/${cacheName(token.logoURI, token.symbol)}.png`),
-      )
 
-      tokensWithLogo.push({
-        ...token,
-        logoURI: `ipfs://${multihash}`,
-      })
-      continue
-    }
-
-    const imageBuffer = await (
-      await fetch(`${process.env.IPFS_GATEWAY}${token.logoURI}`)
-    ).buffer()
-
-    const imageSharp = await sharp(imageBuffer).resize(64, 64).png()
-    const resizedImageBuffer = await imageSharp.toBuffer()
-
-    console.info(` Pinning shrunk image to ${process.env.IPFS_GATEWAY}`)
-    let ipfsResponse
+    const { data: imageBuffer } = await axios.get(
+      `${process.env.IPFS_GATEWAY}${token.logoURI}`,
+      {
+        responseType: 'arraybuffer',
+      },
+    )
+    console.log({ imageBuffer })
+    console.info(` Pinning shrunk image to ${process.env.ESTUARY_GATEWAY}`)
+    let responseData
 
     for (let attempt = 1; attempt <= 10; attempt++)
       try {
-        ipfsResponse = await ipfsPublish(
+        responseData = await estuaryRequest.uploadFile(
           `${token.symbol}.png`,
-          resizedImageBuffer,
+          imageBuffer,
         )
         console.info(` Done.`)
         break
@@ -100,41 +67,11 @@ async function main() {
         else console.warn(` Retrying ${attempt + 1} of ${5}`)
       }
 
-    let pinataHash
-    if (pinata)
-      for (let attempt = 1; attempt <= 5; attempt++) {
-        console.info(` Pinning ${token.symbol} image on pinata.cloud...`)
-        try {
-          await imageSharp.toFile(
-            `images/${cacheName(token.logoURI, token.symbol)}.png`,
-          )
-          const readableStream = fs.createReadStream(
-            `images/${cacheName(token.logoURI, token.symbol)}.png`,
-          )
-          pinataHash = (await pinata.pinFileToIPFS(readableStream)).IpfsHash
-          console.info(` Done.`)
-          break
-        } catch (err) {
-          console.warn(` Failed to upload ${token.symbol} to pinnata.`, err)
-          if (attempt === 5)
-            console.error(
-              ` Could not upload ${token.symbol} image to pinnata after 5 attempts.`,
-            )
-          else console.warn(` Retrying ${attempt + 1} of ${5}`)
-        }
-      }
-
-    if (!ipfsResponse && !pinataHash) {
-      console.error()
-      throw new Error(
-        `Failed to upload ${token.symbol} image to both the ipfs gateway and pinata. Halting`,
-      )
-    }
-
     tokensWithLogo.push({
       ...token,
-      logoURI: `ipfs://${ipfsResponse ? ipfsResponse[0].hash : pinataHash}`,
+      logoURI: responseData?.retrieval_url,
     })
+    console.log({ tokensWithLogo })
   }
 
   // The `decimals()` function of the ERC20 standard is optional, and some
@@ -292,7 +229,6 @@ async function main() {
   // Publish fungible tokens
   await checkPublishErc20(
     latestTokens,
-    pinata,
     provider,
     process.env.LATEST_TOKEN_LIST_URL,
     process.env.ENS_TOKEN_LIST_NAME,
@@ -303,7 +239,6 @@ async function main() {
   // Publish NFTs
   await checkPublishNFT(
     nftTokens,
-    pinata,
     provider,
     process.env.LATEST_NFT_LIST_URL,
     process.env.ENS_NFT_LIST_NAME,
