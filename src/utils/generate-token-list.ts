@@ -1,9 +1,10 @@
+import fetch from 'node-fetch'
+import axios from 'axios'
 import {
   CollectibleList,
   CollectibleInfo,
 } from '@0xsequence/collectible-lists/dist/types'
 import { TokenList, Version, TokenInfo } from '@uniswap/token-lists/dist/types'
-import fetch from 'node-fetch'
 
 type CollectibleOrTokenList<
   T extends CollectibleInfo[] | TokenInfo[]
@@ -44,13 +45,11 @@ export const generateTokenList = <T extends CollectibleInfo[] | TokenInfo[]>(
 }
 
 export const fetchList = async <T>(url: string): Promise<T> => {
-  return await (
-    await fetch(url, {
-      method: 'GET',
-      headers: {
-        pragma: 'no-cache',
-        'cache-control': 'no-cache',
-      },
-    })
-  ).json()
+  return await axios.get(url, {
+    headers: {
+      pragma: 'no-cache',
+      'cache-control': 'no-cache',
+    },
+    responseType: 'json',
+  })
 }
