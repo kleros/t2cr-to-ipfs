@@ -10,7 +10,8 @@ import { GeneralizedTCR } from '@kleros/gtcr-sdk'
 
 import { ERC20ABI } from './abis'
 import { ERC721ABI } from './abis'
-import { estuaryRequest, getTokens, getAddressesWithBadge } from './utils'
+import { getTokens, getAddressesWithBadge } from './utils'
+import estuaryRequest from './api/estuary-api'
 import checkPublishErc20 from './erc20'
 import checkPublishNFT from './nft'
 
@@ -29,6 +30,10 @@ async function main() {
 
   console.info('Fetching tokens...')
   const fetchedTokens: TokenInfo[] = await getTokens(provider, chainId)
+  /* const buf = Buffer.from(JSON.stringify(fetchedTokens[0]))
+  console.log({ buf })
+  const res = await estuaryRequest.uploadFile('token.json', buf)
+  console.log({ res }) */
 
   console.info(
     `Got ${fetchedTokens.length} tokens. Shrinking and uploading token logos...`,
@@ -46,30 +51,17 @@ async function main() {
         responseType: 'arraybuffer',
       },
     )
-    console.log({ imageBuffer })
     console.info(` Pinning shrunk image to ${process.env.ESTUARY_GATEWAY}`)
-    let responseData
-
-    for (let attempt = 1; attempt <= 10; attempt++)
-      try {
-        responseData = await estuaryRequest.uploadFile(
-          `${token.symbol}.png`,
-          imageBuffer,
-        )
-        console.info(` Done.`)
-        break
-      } catch (err) {
-        console.warn(` Failed to upload ${token.symbol} to gateway IPFS.`, err)
-        if (attempt === 5)
-          console.error(
-            ` Could not upload ${token.symbol} image to gateway IPFS after 5 attempts.`,
-          )
-        else console.warn(` Retrying ${attempt + 1} of ${5}`)
-      }
+    const uploadedPin = await estuaryRequest.uploadFile(
+      `${token.symbol}.png`,
+      imageBuffer,
+      { retryCount: 5 },
+    )
+    console.info(` Done.`)
 
     tokensWithLogo.push({
       ...token,
-      logoURI: responseData?.retrieval_url,
+      logoURI: uploadedPin?.retrieval_url,
     })
     console.log({ tokensWithLogo })
   }
