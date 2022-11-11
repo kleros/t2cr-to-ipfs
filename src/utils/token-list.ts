@@ -1,16 +1,25 @@
-import fetch from 'node-fetch'
 import axios from 'axios'
+import Ajv, { JSONSchemaType } from 'ajv'
+import addFormats from 'ajv-formats'
+
+import { TokenList, Version, TokenInfo } from '@uniswap/token-lists/dist/types'
 import {
   CollectibleList,
   CollectibleInfo,
 } from '@0xsequence/collectible-lists/dist/types'
-import { TokenList, Version, TokenInfo } from '@uniswap/token-lists/dist/types'
+
+const ajv = new Ajv({
+  allErrors: true,
+  $data: true,
+  verbose: true,
+})
+addFormats(ajv)
 
 type CollectibleOrTokenList<
   T extends CollectibleInfo[] | TokenInfo[]
 > = T extends CollectibleInfo[] ? CollectibleList : TokenList
 
-export const generateTokenList = <T extends CollectibleInfo[] | TokenInfo[]>(
+const generate = <T extends CollectibleInfo[] | TokenInfo[]>(
   listName: string,
   timestamp: string,
   version: Version,
@@ -44,12 +53,28 @@ export const generateTokenList = <T extends CollectibleInfo[] | TokenInfo[]>(
   } as any
 }
 
-export const fetchList = async <T>(url: string): Promise<T> => {
-  return await axios.get(url, {
-    headers: {
-      pragma: 'no-cache',
-      'cache-control': 'no-cache',
-    },
-    responseType: 'json',
-  })
+export const fetch = async <T>(url: string): Promise<T> => {
+  return (
+    await axios.get(url, {
+      headers: {
+        pragma: 'no-cache',
+        'cache-control': 'no-cache',
+      },
+      responseType: 'json',
+    })
+  ).data
 }
+
+const validate = (schema: any, dataList: CollectibleList | TokenList): void => {
+  const validator = ajv.compile(schema)
+  if (!validator(dataList)) {
+    console.error('Validation errors encountered.')
+    if (validator.errors)
+      validator.errors.map((err: unknown) => {
+        console.error(err)
+      })
+    throw new Error(`Could not validate generated list ${dataList}`)
+  }
+}
+
+export default { fetch, generate, validate }
