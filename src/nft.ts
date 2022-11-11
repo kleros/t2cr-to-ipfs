@@ -6,14 +6,11 @@ import {
 } from '@0xsequence/collectible-lists'
 import { isEqual } from 'lodash'
 import { ethers } from 'ethers'
-import { TextEncoder } from 'util'
 import { abi as resolverABI } from '@ensdomains/resolver/build/contracts/Resolver.json'
 
-import { ipfsPublish } from './utils'
-import { getNewNFTListVersion } from './versioning'
-import { validateCollectibleList } from './utils/validate-collectible-list'
-import { fetchList, generateTokenList } from './utils/generate-token-list'
-import { updateEnsEntry } from './utils/update-ens-entry'
+import estuaryRequest from './api/estuary-api'
+import { getListVersion } from './versioning'
+import { updateEnsEntry, tokenListUtils } from './utils'
 
 export default async function checkPublishNFT(
   latestTokens: CollectibleInfo[],
@@ -26,7 +23,7 @@ export default async function checkPublishNFT(
   const timestamp = new Date().toISOString()
   console.info(`Pulling latest list from ${listURL}`)
 
-  let previousList: CollectibleList = await fetchList(listURL)
+  let previousList: CollectibleList = await tokenListUtils.fetch(listURL)
   console.info('Done.')
 
   // Ensure addresses of the fetched lists are normalized.
@@ -47,34 +44,33 @@ export default async function checkPublishNFT(
   )
   const invalidTokens: CollectibleInfo[] = []
   const validatedTokens = latestTokens
-    .filter((t) => {
-      if (!nameRe.test(t.name)) {
-        console.warn(` ${t.name} failed name regex test, dropping it.`)
-        invalidTokens.push(t)
+    .filter((token) => {
+      if (!nameRe.test(token.name)) {
+        console.warn(` ${token.name} failed name regex test, dropping it.`)
+        invalidTokens.push(token)
         return false
       }
-      if (t.name.length > 40) {
-        console.warn(` ${t.name} longer than 40 chars, dropping it.`)
-        invalidTokens.push(t)
+      if (token.name.length > 40) {
+        console.warn(` ${token.name} longer than 40 chars, dropping it.`)
+        invalidTokens.push(token)
         return false
       }
       return true
     })
-    .filter((t) => {
-      if (!tickerRe.test(t.symbol)) {
-        console.warn(` ${t.symbol} failed ticker regex test, dropping it.`)
-        invalidTokens.push(t)
+    .filter((token) => {
+      if (!tickerRe.test(token.symbol)) {
+        console.warn(` ${token.symbol} failed ticker regex test, dropping it.`)
+        invalidTokens.push(token)
         return false
       }
       return true
     })
 
-  const version: Version = getNewNFTListVersion(
+  const version: Version = getListVersion(
     previousList,
     latestTokens,
     invalidTokens,
   )
-
   if (isEqual(previousList.version, version)) {
     // List did not change. Stop here.
     console.info('List did not change.')
@@ -88,20 +84,22 @@ export default async function checkPublishNFT(
   }
 
   // Build the JSON object.
-  const tokenList: CollectibleList = generateTokenList(
+  const tokenList: CollectibleList = tokenListUtils.generate(
     listName,
     timestamp,
     version,
     validatedTokens,
   )
 
-  validateCollectibleList(schema, tokenList)
+  tokenListUtils.validate(schema, tokenList)
 
-  console.info('Uploading to IPFS...')
-  const data = new TextEncoder().encode(JSON.stringify(tokenList, null, 2))
-  const ipfsResponse = await ipfsPublish(fileName, data)
-  const contentHash = ipfsResponse[0].hash
-  console.info(`Done. ${process.env.IPFS_GATEWAY}/ipfs/${contentHash}`)
+  console.info('Uploading to Estuary...')
+  const bufferTokenList = Buffer.from(JSON.stringify(tokenList))
+  const estuaryResponse = await estuaryRequest.uploadFile(
+    fileName,
+    bufferTokenList,
+  )
+  console.info(`Done. ${estuaryResponse.retrieval_url}`)
 
-  await updateEnsEntry(ensListName, contentHash, resolverABI, provider)
+  await updateEnsEntry(ensListName, estuaryResponse.cid, resolverABI, provider)
 }
