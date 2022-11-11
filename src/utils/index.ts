@@ -1,3 +1,5 @@
 export { default as ipfsPublish } from './ipfs-publish'
 export { default as getAddressesWithBadge } from './get-addresses-with-badge'
 export { default as getTokens } from './get-tokens'
+export { default as updateEnsEntry } from './update-ens-entry'
+export { default as tokenListUtils } from './token-list'

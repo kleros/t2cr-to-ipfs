@@ -11,17 +11,18 @@ import { getContractInstance } from './get-contract-instance'
 // eth_sendTransaction (e.g. Infura).
 //
 // We'll have to interact with the contracts directly.
-export const updateEnsEntry = async (
+export default async function updateEnsEntry(
   ensListName: string,
   contentHash: string,
   abi: ethers.ContractInterface,
   provider: ethers.providers.JsonRpcProvider,
-) => {
+) {
   const ensName = namehash.normalize(ensListName)
   const ensNamehash = namehash.hash(ensName)
 
   const [signer, resolver] = await getContractInstance(ensName, abi, provider)
-  const encodedContentHash = `0x${encode('ipfs-ns', contentHash)}`
+  const encodedContentHash = `0x${encode('ipns-ns', contentHash)}`
+  console.log({ encodedContentHash })
   console.info()
   console.info('Updating ens entry...')
   console.info(`Manager: ${await signer.getAddress()}`)
