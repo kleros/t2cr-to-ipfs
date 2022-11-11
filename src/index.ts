@@ -30,11 +30,6 @@ async function main() {
 
   console.info('Fetching tokens...')
   const fetchedTokens: TokenInfo[] = await getTokens(provider, chainId)
-  /* const buf = Buffer.from(JSON.stringify(fetchedTokens[0]))
-  console.log({ buf })
-  const res = await estuaryRequest.uploadFile('token.json', buf)
-  console.log({ res }) */
-
   console.info(
     `Got ${fetchedTokens.length} tokens. Shrinking and uploading token logos...`,
   )
@@ -63,7 +58,6 @@ async function main() {
       ...token,
       logoURI: uploadedPin?.retrieval_url,
     })
-    console.log({ tokensWithLogo })
   }
 
   // The `decimals()` function of the ERC20 standard is optional, and some
@@ -196,13 +190,13 @@ async function main() {
   badges.forEach((badge) => {
     Object.entries(badge).forEach(([name, addresses]) => {
       addresses.forEach((address) => {
-        latestTokens.concat(latestTokens).forEach((t) => {
-          if (t.address === address && !t.tags?.includes(name))
-            t.tags?.push(name)
+        latestTokens.concat(latestTokens).forEach((token) => {
+          if (token.address === address && !token.tags?.includes(name))
+            token.tags?.push(name)
         })
-        nftTokens.concat(nftTokens).forEach((t) => {
-          if (t.address === address && !t.tags?.includes(name))
-            t.tags?.push(name)
+        nftTokens.concat(nftTokens).forEach((token) => {
+          if (token.address === address && !token.tags?.includes(name))
+            token.tags?.push(name)
         })
       })
     })
@@ -213,7 +207,7 @@ async function main() {
       `Tokens with the ${tag} badge: ${
         latestTokens
           .concat(latestTokens)
-          .filter((t) => t.tags && t.tags.includes(tag)).length
+          .filter((token) => token.tags && token.tags.includes(tag)).length
       }`,
     )
   })
