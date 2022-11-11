@@ -1,8 +1,8 @@
 import { ethers } from 'ethers'
-import fetch from 'node-fetch'
 import { TokenInfo } from '@uniswap/token-lists'
 
 import { TokenDecimalsViewABI } from '../abis'
+import axios from 'axios'
 
 interface TokenFromSubgraph {
   name: string
@@ -18,22 +18,26 @@ export default async function getTokens(
   provider: ethers.providers.JsonRpcProvider,
   chainId: number,
 ): Promise<TokenInfo[]> {
-  const registryResponse = await fetch(process.env.T2CR_GRAPH_URL, {
-    method: 'POST',
-    body: JSON.stringify({
+  const registryResponse = await axios.post(
+    process.env.T2CR_GRAPH_URL,
+    JSON.stringify({
       query: `
-        {
-          registries {
-            numberOfSubmissions
-          }
+      {
+        registries {
+          numberOfSubmissions
         }
-      `,
+      }
+    `,
     }),
-  })
-
+    {
+      responseType: 'json',
+    },
+  )
   const {
-    data: { registries },
-  } = (await registryResponse.json()) || {}
+    data: {
+      data: { registries },
+    },
+  } = registryResponse || {}
   const registry = registries[0]
   const { numberOfSubmissions } = registry
   const rounds = Math.ceil(numberOfSubmissions / 1000)
@@ -41,36 +45,14 @@ export default async function getTokens(
   let tokensFromSubgraph: TokenFromSubgraph[] = []
 
   for (let i = 0; i < rounds; i++) {
-    const registeredResponse = await fetch(process.env.T2CR_GRAPH_URL, {
-      method: 'POST',
-      body: JSON.stringify({
+    const registeredResponse = await axios.post(
+      process.env.T2CR_GRAPH_URL,
+      JSON.stringify({
         query: `
-          {
-            tokens(skip: ${
-              i * 1000
-            }, first: 1000, where: { status: Registered }) {
-              name
-              ticker
-              address
-              symbolMultihash
-            }
-          }
-        `,
-      }),
-    })
-
-    const {
-      data: { tokens: registeredTokens },
-    } = (await registeredResponse.json()) || {}
-    tokensFromSubgraph = tokensFromSubgraph.concat(registeredTokens)
-  }
-
-  const clearingRequestedResponse = await fetch(process.env.T2CR_GRAPH_URL, {
-    method: 'POST',
-    body: JSON.stringify({
-      query: `
         {
-          tokens(where: { status: ClearingRequested }) {
+          tokens(skip: ${
+            i * 1000
+          }, first: 1000, where: { status: Registered }) {
             name
             ticker
             address
@@ -78,11 +60,44 @@ export default async function getTokens(
           }
         }
       `,
+      }),
+      {
+        responseType: 'json',
+      },
+    )
+
+    const {
+      data: {
+        data: { tokens: registeredTokens },
+      },
+    } = registeredResponse || {}
+    tokensFromSubgraph = tokensFromSubgraph.concat(registeredTokens)
+  }
+
+  const clearingRequestedResponse = await axios.post(
+    process.env.T2CR_GRAPH_URL,
+    JSON.stringify({
+      query: `
+      {
+        tokens(where: { status: ClearingRequested }) {
+          name
+          ticker
+          address
+          symbolMultihash
+        }
+      }
+    `,
     }),
-  })
+    {
+      responseType: 'json',
+    },
+  )
+
   const {
-    data: { tokens: clearingRequestedTokens },
-  } = (await clearingRequestedResponse.json()) || {}
+    data: {
+      data: { tokens: clearingRequestedTokens },
+    },
+  } = clearingRequestedResponse || {}
   tokensFromSubgraph = tokensFromSubgraph.concat(clearingRequestedTokens)
   tokensFromSubgraph = tokensFromSubgraph.map((t: TokenFromSubgraph) => ({
     ...t,
