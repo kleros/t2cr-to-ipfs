@@ -12,8 +12,8 @@ import { ERC20ABI } from './abis'
 import { ERC721ABI } from './abis'
 import { getTokens, getAddressesWithBadge } from './utils'
 import estuaryRequest from './api/estuary-api'
-import checkPublishErc20 from './erc20'
-import checkPublishNFT from './nft'
+import updateAndValidateErc20List from './erc20'
+import updateAndValidateNFTList from './nft'
 
 console.info('Starting...')
 
@@ -212,25 +212,19 @@ async function main() {
     )
   })
 
-  // Publish fungible tokens
-  await checkPublishErc20(
+  const erc20List = await updateAndValidateErc20List(
     latestTokens,
-    provider,
     process.env.LATEST_TOKEN_LIST_URL,
-    process.env.ENS_TOKEN_LIST_NAME,
     'Tokens',
-    't2cr.tokenlist.json',
   )
 
-  // Publish NFTs
-  await checkPublishNFT(
+  const nftList = await updateAndValidateNFTList(
     nftTokens,
-    provider,
     process.env.LATEST_NFT_LIST_URL,
-    process.env.ENS_NFT_LIST_NAME,
     'NFTs',
-    't2crnfts.tokenlist.json',
   )
+
+  return { erc20List, nftList }
 }
 
 main()

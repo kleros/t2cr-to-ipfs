@@ -1,20 +1,15 @@
 import { schema, TokenInfo, TokenList, Version } from '@uniswap/token-lists'
 import { isEqual } from 'lodash'
 import { ethers } from 'ethers'
-import { abi as resolverABI } from '@ensdomains/resolver/build/contracts/Resolver.json'
 
-import estuaryRequest from './api/estuary-api'
 import { getListVersion } from './versioning'
-import { updateEnsEntry, tokenListUtils } from './utils'
+import { tokenListUtils } from './utils'
 
-export default async function checkPublishErc20(
+export default async function updateAndValidateErc20List(
   latestTokens: TokenInfo[],
-  provider: ethers.providers.JsonRpcProvider,
   listURL = '',
-  ensListName = '',
   listName: string,
-  fileName: string,
-): Promise<void> {
+): Promise<TokenList> {
   const timestamp = new Date().toISOString()
   console.info(`Pulling latest list from ${listURL}`)
 
@@ -74,7 +69,7 @@ export default async function checkPublishErc20(
       'Latest list can be found at',
       process.env.LATEST_TOKEN_LIST_URL,
     )
-    return
+    return previousList
   } else {
     console.info('List changed.')
   }
@@ -88,15 +83,5 @@ export default async function checkPublishErc20(
   )
 
   tokenListUtils.validate(schema, tokenList)
-
-  console.info('Uploading to Estuary...')
-  const bufferTokenList = Buffer.from(JSON.stringify(tokenList))
-  const estuaryResponse = await estuaryRequest.uploadFile(
-    fileName,
-    bufferTokenList,
-  )
-  console.log({ estuaryResponse })
-  console.info(`Done. ${estuaryResponse.retrieval_url}`)
-
-  await updateEnsEntry(ensListName, estuaryResponse.cid, resolverABI, provider)
+  return tokenList
 }

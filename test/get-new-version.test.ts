@@ -1,6 +1,6 @@
 import { cloneDeep } from 'lodash'
 
-import { getNewErc20ListVersion } from '../src/versioning'
+import { getListVersion } from '../src/versioning'
 import TestTokenList from './files/test-token-list.json'
 
 test('Increments minor version if a token is added', () => {
@@ -17,7 +17,7 @@ test('Increments minor version if a token is added', () => {
     },
   ]
 
-  expect(getNewErc20ListVersion(TestTokenList, newList,[])).toEqual({
+  expect(getListVersion(TestTokenList, newList, [])).toEqual({
     major: 1,
     minor: 1,
     patch: 0,
@@ -27,7 +27,7 @@ test('Increments minor version if a token is added', () => {
 test('Increments the major version when tokens are removed', () => {
   const newList = TestTokenList.tokens.slice(1)
 
-  expect(getNewErc20ListVersion(TestTokenList, newList, [])).toEqual({
+  expect(getListVersion(TestTokenList, newList, [])).toEqual({
     major: 2,
     minor: 0,
     patch: 0,
@@ -39,7 +39,7 @@ test('Increments the patch version when tokens already on the list have minor de
   newList[0].symbol = `a${newList[0].name}`
   newList[1].name = `${newList[1].name} Token`
 
-  expect(getNewErc20ListVersion(TestTokenList, newList, [])).toEqual({
+  expect(getListVersion(TestTokenList, newList, [])).toEqual({
     major: 1,
     minor: 0,
     patch: 1,
@@ -51,7 +51,7 @@ test('Changing a token address or chain ID is considered both a remove and an ad
   newList[0].chainId = 42
   newList[1].address = '0xB0b86791c6218b36c1d19D4a2e9Eb0cE3606eA37'
 
-  expect(getNewErc20ListVersion(TestTokenList, newList, [])).toEqual({
+  expect(getListVersion(TestTokenList, newList, [])).toEqual({
     major: 2,
     minor: 0,
     patch: 0,

@@ -6,20 +6,15 @@ import {
 } from '@0xsequence/collectible-lists'
 import { isEqual } from 'lodash'
 import { ethers } from 'ethers'
-import { abi as resolverABI } from '@ensdomains/resolver/build/contracts/Resolver.json'
 
-import estuaryRequest from './api/estuary-api'
 import { getListVersion } from './versioning'
-import { updateEnsEntry, tokenListUtils } from './utils'
+import { tokenListUtils } from './utils'
 
-export default async function checkPublishNFT(
+export default async function updateAndValidateNFTList(
   latestTokens: CollectibleInfo[],
-  provider: ethers.providers.JsonRpcProvider,
   listURL = '',
-  ensListName = '',
   listName: string,
-  fileName: string,
-): Promise<void> {
+): Promise<CollectibleList> {
   const timestamp = new Date().toISOString()
   console.info(`Pulling latest list from ${listURL}`)
 
@@ -78,7 +73,7 @@ export default async function checkPublishNFT(
       'Latest list can be found at',
       process.env.LATEST_TOKEN_LIST_URL,
     )
-    return
+    return previousList
   } else {
     console.info('List changed.')
   }
@@ -92,14 +87,5 @@ export default async function checkPublishNFT(
   )
 
   tokenListUtils.validate(schema, tokenList)
-
-  console.info('Uploading to Estuary...')
-  const bufferTokenList = Buffer.from(JSON.stringify(tokenList))
-  const estuaryResponse = await estuaryRequest.uploadFile(
-    fileName,
-    bufferTokenList,
-  )
-  console.info(`Done. ${estuaryResponse.retrieval_url}`)
-
-  await updateEnsEntry(ensListName, estuaryResponse.cid, resolverABI, provider)
+  return tokenList
 }
