@@ -64,8 +64,6 @@ const uploadFile = async (
   } catch (error) {
     if (axios.isAxiosError(error) && error.response) {
       console.log(error.response.data)
-      console.log(error.response.status)
-      console.log(error.response.status)
     } else {
       console.log('Unexpected Error', error)
     }
