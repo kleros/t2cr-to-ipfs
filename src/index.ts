@@ -1,28 +1,21 @@
 import dotenv from 'dotenv-safe'
+dotenv.config({ path: '.env', allowEmptyValues: true })
+
 import { ethers } from 'ethers'
 import { TokenInfo } from '@uniswap/token-lists'
-import fetch from 'node-fetch'
-import sharp from 'sharp'
-import pinataSDK from '@pinata/sdk'
-import fs from 'fs'
-import IpfsOnlyHash from 'ipfs-only-hash'
+import axios from 'axios'
+
 import { CollectibleInfo } from '@0xsequence/collectible-lists'
 import { GeneralizedTCR } from '@kleros/gtcr-sdk'
 
-dotenv.config({ path: '.env' })
-
 import { ERC20ABI } from './abis'
 import { ERC721ABI } from './abis'
-import { ipfsPublish, getTokens, getAddressesWithBadge } from './utils'
-import checkPublishErc20 from './erc20'
-import checkPublishNFT from './nft'
+import { getTokens, getAddressesWithBadge, writeToFile } from './utils'
+import estuaryRequest from './api/estuary-api'
+import updateAndValidateErc20List from './erc20'
+import updateAndValidateNFTList from './nft'
 
 console.info('Starting...')
-
-// We include part of the multihash on the cache filename to avoid
-// outdated files.
-const cacheName = (multihash: string | undefined, symbol: string) =>
-  multihash ? `${symbol}-` + multihash.slice(-10).replace('/', '-') : ''
 
 async function main() {
   console.info()
@@ -33,25 +26,10 @@ async function main() {
   provider.pollingInterval =
     Number(process.env.POLL_PERIOD_SECONDS) || 60 * 1000 // Poll every minute.
 
-  // Initialize pinata.cloud if keys were provided.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let pinata: any
-  if (process.env.PINATA_API_KEY && process.env.PINATA_SECRET_API_KEY) {
-    pinata = pinataSDK(
-      process.env.PINATA_API_KEY,
-      process.env.PINATA_SECRET_API_KEY,
-    )
-    console.info(
-      'Pinata authentication test',
-      await pinata.testAuthentication(),
-    )
-  }
-
   const chainId = (await provider.getNetwork()).chainId
 
   console.info('Fetching tokens...')
   const fetchedTokens: TokenInfo[] = await getTokens(provider, chainId)
-
   console.info(
     `Got ${fetchedTokens.length} tokens. Shrinking and uploading token logos...`,
   )
@@ -61,79 +39,24 @@ async function main() {
   const tokensWithLogo: TokenInfo[] = []
   for (const token of fetchedTokens) {
     console.info(`${++i} of ${fetchedTokens.length}`)
-    if (fs.existsSync(`images/${cacheName(token.logoURI, token.symbol)}.png`)) {
-      const multihash = await IpfsOnlyHash.of(
-        fs.readFileSync(`images/${cacheName(token.logoURI, token.symbol)}.png`),
-      )
 
-      tokensWithLogo.push({
-        ...token,
-        logoURI: `ipfs://${multihash}`,
-      })
-      continue
-    }
-
-    const imageBuffer = await (
-      await fetch(`${process.env.IPFS_GATEWAY}${token.logoURI}`)
-    ).buffer()
-
-    const imageSharp = await sharp(imageBuffer).resize(64, 64).png()
-    const resizedImageBuffer = await imageSharp.toBuffer()
-
-    console.info(` Pinning shrunk image to ${process.env.IPFS_GATEWAY}`)
-    let ipfsResponse
-
-    for (let attempt = 1; attempt <= 10; attempt++)
-      try {
-        ipfsResponse = await ipfsPublish(
-          `${token.symbol}.png`,
-          resizedImageBuffer,
-        )
-        console.info(` Done.`)
-        break
-      } catch (err) {
-        console.warn(` Failed to upload ${token.symbol} to gateway IPFS.`, err)
-        if (attempt === 5)
-          console.error(
-            ` Could not upload ${token.symbol} image to gateway IPFS after 5 attempts.`,
-          )
-        else console.warn(` Retrying ${attempt + 1} of ${5}`)
-      }
-
-    let pinataHash
-    if (pinata)
-      for (let attempt = 1; attempt <= 5; attempt++) {
-        console.info(` Pinning ${token.symbol} image on pinata.cloud...`)
-        try {
-          await imageSharp.toFile(
-            `images/${cacheName(token.logoURI, token.symbol)}.png`,
-          )
-          const readableStream = fs.createReadStream(
-            `images/${cacheName(token.logoURI, token.symbol)}.png`,
-          )
-          pinataHash = (await pinata.pinFileToIPFS(readableStream)).IpfsHash
-          console.info(` Done.`)
-          break
-        } catch (err) {
-          console.warn(` Failed to upload ${token.symbol} to pinnata.`, err)
-          if (attempt === 5)
-            console.error(
-              ` Could not upload ${token.symbol} image to pinnata after 5 attempts.`,
-            )
-          else console.warn(` Retrying ${attempt + 1} of ${5}`)
-        }
-      }
-
-    if (!ipfsResponse && !pinataHash) {
-      console.error()
-      throw new Error(
-        `Failed to upload ${token.symbol} image to both the ipfs gateway and pinata. Halting`,
-      )
-    }
+    const { data: imageBuffer } = await axios.get(
+      `${process.env.IPFS_GATEWAY}${token.logoURI}`,
+      {
+        responseType: 'arraybuffer',
+      },
+    )
+    console.info(` Pinning shrunk image to ${process.env.ESTUARY_GATEWAY}`)
+    const uploadedPin = await estuaryRequest.uploadFile(
+      `${token.symbol}.png`,
+      imageBuffer,
+      { retryCount: 5 },
+    )
+    console.info(` Done.`)
 
     tokensWithLogo.push({
       ...token,
-      logoURI: `ipfs://${ipfsResponse ? ipfsResponse[0].hash : pinataHash}`,
+      logoURI: uploadedPin?.retrieval_url,
     })
   }
 
@@ -176,9 +99,13 @@ async function main() {
         decimals: Number(await token.decimals()),
       })
     } catch (err) {
-      console.warn(
-        `${checkToken.symbol}/${checkToken.name} @ ${checkToken.address}, chainId ${chainId} throws when 'decimals' is called with error ${err.message}.`,
-      )
+      if (err instanceof Error) {
+        console.warn(
+          `${checkToken.symbol}/${checkToken.name} @ ${checkToken.address}, chainId ${chainId} throws when 'decimals' is called with error ${err.message}.`,
+        )
+      } else {
+        console.warn('Unexpected error', err)
+      }
       console.warn(` Checking if it is an NFT`)
       const nftToken = new ethers.Contract(
         checkToken.address,
@@ -202,12 +129,14 @@ async function main() {
       } finally {
         if (is721) {
           console.info(` This is an ERC721 token, adding it to the list.`)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const nft = { ...checkToken, standard: 'erc721' } as any
           delete nft.decimals
           nftTokens.push(nft)
           continue
         } else if (is1155) {
           console.info(` This is an ERC1155 token, adding it to the list.`)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const nft = { ...checkToken, standard: 'erc1155' } as any
           delete nft.decimals
           nftTokens.push(nft)
@@ -261,13 +190,13 @@ async function main() {
   badges.forEach((badge) => {
     Object.entries(badge).forEach(([name, addresses]) => {
       addresses.forEach((address) => {
-        latestTokens.concat(latestTokens).forEach((t) => {
-          if (t.address === address && !t.tags?.includes(name))
-            t.tags?.push(name)
+        latestTokens.concat(latestTokens).forEach((token) => {
+          if (token.address === address && !token.tags?.includes(name))
+            token.tags?.push(name)
         })
-        nftTokens.concat(nftTokens).forEach((t) => {
-          if (t.address === address && !t.tags?.includes(name))
-            t.tags?.push(name)
+        nftTokens.concat(nftTokens).forEach((token) => {
+          if (token.address === address && !token.tags?.includes(name))
+            token.tags?.push(name)
         })
       })
     })
@@ -278,32 +207,25 @@ async function main() {
       `Tokens with the ${tag} badge: ${
         latestTokens
           .concat(latestTokens)
-          .filter((t) => t.tags && t.tags.includes(tag)).length
+          .filter((token) => token.tags && token.tags.includes(tag)).length
       }`,
     )
   })
 
-  // Publish fungible tokens
-  await checkPublishErc20(
+  const erc20List = await updateAndValidateErc20List(
     latestTokens,
-    pinata,
-    provider,
     process.env.LATEST_TOKEN_LIST_URL,
-    process.env.ENS_TOKEN_LIST_NAME,
     'Tokens',
-    't2cr.tokenlist.json',
   )
+  writeToFile('t2cr.tokenlist.json', erc20List)
 
-  // Publish NFTs
-  await checkPublishNFT(
+  const nftList = await updateAndValidateNFTList(
     nftTokens,
-    pinata,
-    provider,
     process.env.LATEST_NFT_LIST_URL,
-    process.env.ENS_NFT_LIST_NAME,
     'NFTs',
-    't2crnfts.tokenlist.json',
   )
+  writeToFile('t2crnfts.tokenlist.json', nftList)
 }
 
 main()
+//git commit -m"refactor(pipeline-prep): remove estuary upload & ENS record update for updated tokens lists" -m"CHANGE: since ENS does not support CIDv1, we can't use Estuary for pinning atm. We are going to utilize pipeline "
