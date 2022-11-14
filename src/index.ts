@@ -10,7 +10,7 @@ import { GeneralizedTCR } from '@kleros/gtcr-sdk'
 
 import { ERC20ABI } from './abis'
 import { ERC721ABI } from './abis'
-import { getTokens, getAddressesWithBadge } from './utils'
+import { getTokens, getAddressesWithBadge, writeToFile } from './utils'
 import estuaryRequest from './api/estuary-api'
 import updateAndValidateErc20List from './erc20'
 import updateAndValidateNFTList from './nft'
@@ -217,14 +217,15 @@ async function main() {
     process.env.LATEST_TOKEN_LIST_URL,
     'Tokens',
   )
+  writeToFile('t2cr.tokenlist.json', erc20List)
 
   const nftList = await updateAndValidateNFTList(
     nftTokens,
     process.env.LATEST_NFT_LIST_URL,
     'NFTs',
   )
-
-  return { erc20List, nftList }
+  writeToFile('t2crnfts.tokenlist.json', nftList)
 }
 
 main()
+//git commit -m"refactor(pipeline-prep): remove estuary upload & ENS record update for updated tokens lists" -m"CHANGE: since ENS does not support CIDv1, we can't use Estuary for pinning atm. We are going to utilize pipeline "
