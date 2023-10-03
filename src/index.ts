@@ -56,8 +56,7 @@ async function main() {
   }
 
   console.info('Fetching tokens...')
-  const test = await getTokens()
-  const fetchedTokens: TokenInfo[] = test.filter((t) => t.chainId !== 1)
+  const fetchedTokens: TokenInfo[] = await getTokens()
 
   console.info(
     `Got ${fetchedTokens.length} tokens. Shrinking and uploading token logos...`,
