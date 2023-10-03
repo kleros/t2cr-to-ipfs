@@ -74,6 +74,9 @@ export default async function getTokens(): Promise<TokenInfo[]> {
   // This script used to check views to figure out the decimals,
   // but since the decimals are currently curated, that is no longer necessary.
 
+  const nonEvmTokens: string[] = []
+  const dupeTokens: string[] = []
+
   const tokens: Map<string, TokenInfo> = new Map()
   for (const token of tokensFromSubgraph) {
     const caipAddress = token.props.find((p) => p.label === 'Address')
@@ -86,12 +89,15 @@ export default async function getTokens(): Promise<TokenInfo[]> {
       ?.value as string
 
     const [namespace] = caipAddress.split(':')
-    if (namespace !== 'eip155') continue // Non-EVM contracts are out for the time being
-    const [, chainId, address] = caipAddress.split(':')
-
-    if (tokens.get(caipAddress.toLowerCase())) {
-      console.log(tokens.get(caipAddress.toLowerCase()))
+    if (namespace !== 'eip155') {
+      nonEvmTokens.push(caipAddress)
+      continue // Non-EVM contracts are out for the time being
     }
+    const matchToken = tokens.get(caipAddress.toLowerCase())
+    if (matchToken) {
+      dupeTokens.push(caipAddress)
+    }
+    const [, chainId, address] = caipAddress.split(':')
 
     tokens.set(caipAddress.toLowerCase(), {
       chainId: Number(chainId),
@@ -102,6 +108,10 @@ export default async function getTokens(): Promise<TokenInfo[]> {
       logoURI: logo,
     })
   }
+
+  console.log('Non-evm tokens: ', nonEvmTokens.length)
+  console.log('Dupe tokens: ', dupeTokens.length, dupeTokens)
+  console.log('=================')
 
   return Array.from(tokens.values())
 }
