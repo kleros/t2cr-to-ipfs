@@ -12,6 +12,7 @@ dotenv.config({ path: '.env', allowEmptyValues: true })
 import { ipfsPublish, getTokens } from './utils'
 import checkPublishErc20 from './erc20'
 
+if (!fs.existsSync('images')) fs.mkdirSync('images')
 console.info('Starting...')
 
 // We include part of the multihash on the cache filename to avoid
@@ -55,7 +56,8 @@ async function main() {
   }
 
   console.info('Fetching tokens...')
-  const fetchedTokens: TokenInfo[] = await getTokens()
+  const test = await getTokens()
+  const fetchedTokens: TokenInfo[] = test.filter((t) => t.chainId !== 1)
 
   console.info(
     `Got ${fetchedTokens.length} tokens. Shrinking and uploading token logos...`,
