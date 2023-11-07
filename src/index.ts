@@ -36,14 +36,12 @@ async function main() {
   const provider = new ethers.providers.JsonRpcProvider(
     process.env.PROVIDER_URL,
   )
-  provider.pollingInterval =
-    Number(process.env.POLL_PERIOD_SECONDS) || 60 * 1000 // Poll every minute.
 
   // Initialize pinata.cloud if keys were provided.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let pinata: any | null
   if (process.env.PINATA_API_KEY && process.env.PINATA_SECRET_API_KEY) {
-    pinata = pinataSDK(
+    pinata = new pinataSDK(
       process.env.PINATA_API_KEY,
       process.env.PINATA_SECRET_API_KEY,
     )

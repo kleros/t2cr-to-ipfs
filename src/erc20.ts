@@ -6,14 +6,13 @@ import namehash from 'eth-ens-namehash'
 import { encode } from 'content-hash'
 import fetch from 'node-fetch'
 import { TextEncoder } from 'util'
-import { abi as resolverABI } from '@ensdomains/resolver/build/contracts/Resolver.json'
+import resolverABI from '@ensdomains/ens-contracts/build/contracts/Resolver.json'
 
 import { ipfsPublish } from './utils'
 import { getNewErc20ListVersion } from './versioning'
 
 const ajv = new Ajv({
   allErrors: true,
-  format: 'full',
   $data: true,
   verbose: true,
 })
