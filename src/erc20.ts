@@ -21,8 +21,6 @@ const validator = ajv.compile(schema)
 
 export default async function checkPublishErc20(
   latestTokens: TokenInfo[],
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
-  pinata: any,
   provider: ethers.providers.JsonRpcProvider,
   listURL = '',
   ensListName = '',
@@ -134,12 +132,6 @@ export default async function checkPublishErc20(
   const ipfsResponse = await ipfsPublish(fileName, data)
   const contentHash = ipfsResponse[0].hash
   console.info(`Done. ${process.env.IPFS_GATEWAY}/ipfs/${contentHash}`)
-
-  if (pinata) {
-    console.info('Pinning list in pinata.cloud...')
-    await pinata.pinByHash(contentHash)
-    console.info('Done.')
-  }
 
   // As of v5.0.5, Ethers ENS API doesn't include managing ENS names, so we
   // can't use it directly. Neither does the ethjs API.

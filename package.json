@@ -33,7 +33,6 @@
   },
   "dependencies": {
     "@ensdomains/ens-contracts": "^0.0.22",
-    "@pinata/sdk": "^1.1.10",
     "@uniswap/token-lists": "^1.0.0-beta.33",
     "ajv": "^6.12.3",
     "content-hash": "^2.5.2",

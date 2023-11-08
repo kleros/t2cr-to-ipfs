@@ -3,7 +3,6 @@ import { ethers } from 'ethers'
 import { TokenInfo } from '@uniswap/token-lists'
 import fetch from 'node-fetch'
 import sharp from 'sharp'
-import pinataSDK from '@pinata/sdk'
 import fs from 'fs'
 import { Level } from 'level'
 
@@ -36,22 +35,6 @@ async function main() {
   const provider = new ethers.providers.JsonRpcProvider(
     process.env.PROVIDER_URL,
   )
-
-  // Initialize pinata.cloud if keys were provided.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let pinata: any | null
-  if (process.env.PINATA_API_KEY && process.env.PINATA_SECRET_API_KEY) {
-    pinata = new pinataSDK(
-      process.env.PINATA_API_KEY,
-      process.env.PINATA_SECRET_API_KEY,
-    )
-    console.info(
-      'Pinata authentication test',
-      await pinata.testAuthentication(),
-    )
-  } else {
-    pinata = null
-  }
 
   console.info('Fetching tokens...')
   const fetchedTokens: TokenInfo[] = await getTokens()
@@ -109,39 +92,16 @@ async function main() {
           else console.warn(` Retrying ${attempt + 1} of ${5}`)
         }
 
-      let pinataHash
-      if (pinata)
-        for (let attempt = 1; attempt <= 5; attempt++) {
-          console.info(` Pinning ${token.symbol} image on pinata.cloud...`)
-          try {
-            await imageSharp.toFile(
-              `images/${cacheName(token.logoURI as string, token.symbol)}.png`,
-            )
-            const readableStream = fs.createReadStream(
-              `images/${cacheName(token.logoURI as string, token.symbol)}.png`,
-            )
-            pinataHash = (await pinata.pinFileToIPFS(readableStream)).IpfsHash
-            console.info(` Done.`)
-            break
-          } catch (err) {
-            console.warn(` Failed to upload ${token.symbol} to pinata.`, err)
-            if (attempt === 5)
-              console.error(
-                ` Could not upload ${token.symbol} image to pinata after 5 attempts.`,
-              )
-            else console.warn(` Retrying ${attempt + 1} of ${5}`)
-          }
-        }
-      if (!ipfsResponse && !pinataHash) {
+      if (!ipfsResponse) {
         console.error()
         throw new Error(
-          `Failed to upload ${token.symbol} image to both the ipfs gateway and pinata. Halting`,
+          `Failed to upload ${token.symbol} image to ipfs gateway. Halting`,
         )
       }
-      const multihash = ipfsResponse ? ipfsResponse[0].hash : pinataHash
+      const multihash = ipfsResponse[0].hash
 
-      if (ipfsResponse && pinataHash) {
-        // Was successfully pinned to two places, no point in resubmitting.
+      if (ipfsResponse) {
+        // Was successfully pinned to IPFS, no point in resubmitting.
         console.log(` Caching ${multihash}`)
         await db.put(
           cacheName(token.logoURI as string, token.symbol),
@@ -159,7 +119,6 @@ async function main() {
   // Publish fungible tokens
   await checkPublishErc20(
     tokensWithLogo,
-    pinata,
     provider,
     process.env.LATEST_TOKEN_LIST_URL,
     process.env.ENS_TOKEN_LIST_NAME,
