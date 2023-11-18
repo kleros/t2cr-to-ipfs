@@ -3,7 +3,7 @@ import { difference, isEqual } from 'lodash'
 
 /**
  * Calculates a new version object from two token lists.
- * Important: This function assumes the input lists do not include tokens with duplicate addresses or different chainIds (which is the case when pulling with the view contract). It also assumes the token addresses are checksummed.
+ * Important: This function assumes the input lists do not include tokens with duplicate addresses. It also assumes the token addresses are checksummed.
  * @param previousTokens The previous list to compare the new with.
  * @param latestTokens The new list.
  * @param invalidTokens These are tokens that failed uniswap-tokenlists validation rules.
@@ -20,22 +20,26 @@ export function getNewErc20ListVersion(
   //   4- Changing a token address or chain ID is considered both a remove and an add which produce a major version update.
   // Note that for the case of the using a view contract, number 4 will never happen.
 
-  const oldTokensMapping: { [key: string]: unknown } = {}
+  const tokenToKey = (token: TokenInfo) => `${token.chainId}:${token.address}`
+
+  const oldTokensMapping: { [key: string]: TokenInfo } = {}
   previousTokens.tokens.forEach((token: TokenInfo) => {
-    oldTokensMapping[token.address] = token
+    oldTokensMapping[tokenToKey(token)] = token
   })
+
+  const invalidTokenKeys = invalidTokens.map((i) => tokenToKey(i))
 
   let incrementMajor = false
   let incrementMinor = false
   let incrementPatch = false
   for (const latestToken of latestTokens) {
-    const previousToken = oldTokensMapping[latestToken.address]
-    const invalidTokenAddresses = invalidTokens.map((i) => i.address)
+    const previousToken = oldTokensMapping[tokenToKey(latestToken)]
 
     if (!previousToken) {
-      if (invalidTokenAddresses.includes(latestToken.address)) {
+      if (invalidTokenKeys.includes(tokenToKey(latestToken))) {
         // Check if this token was not added because it failed uniswap
         // tokenlist rules.
+        // If so, it wasn't included before either, so ignore it.
         continue
       }
       incrementMinor = true // Token added.
@@ -53,12 +57,12 @@ export function getNewErc20ListVersion(
   if (
     difference(
       Object.keys(oldTokensMapping),
-      latestTokens.map((t) => t.address),
+      latestTokens.map((t) => tokenToKey(t)),
     ).length > 0
   ) {
     const diff = difference(
       Object.keys(oldTokensMapping),
-      latestTokens.map((t) => t.address),
+      latestTokens.map((t) => tokenToKey(t)),
     )
     console.info('diff:', diff)
     incrementMajor = true
