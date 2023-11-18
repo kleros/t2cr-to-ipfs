@@ -6,14 +6,13 @@ import namehash from 'eth-ens-namehash'
 import { encode } from 'content-hash'
 import fetch from 'node-fetch'
 import { TextEncoder } from 'util'
-import { abi as resolverABI } from '@ensdomains/resolver/build/contracts/Resolver.json'
+import resolverABI from '@ensdomains/ens-contracts/build/contracts/Resolver.json'
 
 import { ipfsPublish } from './utils'
 import { getNewErc20ListVersion } from './versioning'
 
 const ajv = new Ajv({
   allErrors: true,
-  format: 'full',
   $data: true,
   verbose: true,
 })
@@ -22,8 +21,6 @@ const validator = ajv.compile(schema)
 
 export default async function checkPublishErc20(
   latestTokens: TokenInfo[],
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
-  pinata: any,
   provider: ethers.providers.JsonRpcProvider,
   listURL = '',
   ensListName = '',
@@ -55,10 +52,12 @@ export default async function checkPublishErc20(
 
   // Invalid names or tickers should not prevent a new list from being published.
   const nameRe = new RegExp(
-    schema.definitions.TokenInfo.properties.name.pattern,
+    //schema.definitions.TokenInfo.properties.name.pattern,
+    "^[ \\w.'+\\-%/À-ÖØ-öø-ÿ:&\\[\\]\\(\\)]+$",
   )
   const tickerRe = new RegExp(
-    schema.definitions.TokenInfo.properties.symbol.pattern,
+    //schema.definitions.TokenInfo.properties.symbol.pattern,
+    '^[a-zA-Z0-9+\\-%/$.]+$',
   )
   const invalidTokens: TokenInfo[] = []
   const validatedTokens = latestTokens
@@ -79,6 +78,12 @@ export default async function checkPublishErc20(
     .filter((t) => {
       if (!tickerRe.test(t.symbol)) {
         console.warn(` ${t.symbol} failed ticker regex test, dropping it.`)
+        invalidTokens.push(t)
+        return false
+      }
+      if (t.symbol.length > 20) {
+        console.warn(` ${t.symbol} longer than 20 chars, dropping it.`)
+        console.warn(` Address: ${t.address}`)
         invalidTokens.push(t)
         return false
       }
@@ -110,24 +115,6 @@ export default async function checkPublishErc20(
     keywords: ['t2cr', 'kleros', 'list'],
     timestamp,
     version,
-    tags: {
-      erc20: {
-        name: 'ERC20',
-        description: `This token is verified to be ERC20 thus there should not be incompatibility issues with the Uniswap protocol.`,
-      },
-      stablecoin: {
-        name: 'Stablecoin',
-        description: `This token is verified to maintain peg against a target.`,
-      },
-      trueCrypto: {
-        name: 'TrueCrypto',
-        description: `TrueCryptosystem verifies the token is a necessary element of a self sustaining public utility.`,
-      },
-      dutchX: {
-        name: 'DutchX',
-        description: `This token is verified to comply with the DutchX exchange listing criteria.`,
-      },
-    },
     tokens: validatedTokens,
   }
 
@@ -145,12 +132,6 @@ export default async function checkPublishErc20(
   const ipfsResponse = await ipfsPublish(fileName, data)
   const contentHash = ipfsResponse[0].hash
   console.info(`Done. ${process.env.IPFS_GATEWAY}/ipfs/${contentHash}`)
-
-  if (pinata) {
-    console.info('Pinning list in pinata.cloud...')
-    await pinata.pinByHash(contentHash)
-    console.info('Done.')
-  }
 
   // As of v5.0.5, Ethers ENS API doesn't include managing ENS names, so we
   // can't use it directly. Neither does the ethjs API.

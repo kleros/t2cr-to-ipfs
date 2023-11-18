@@ -1,7 +1,8 @@
 node_modules
-dist
+build
 yarn-error.log
 .env
 .vscode
 !.gitkeep
 images
+db

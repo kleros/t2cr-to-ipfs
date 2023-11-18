@@ -9,7 +9,7 @@ export NVM_DIR="/home/ubuntu/.nvm"
 
 # uncomment the line below if you need a specific version of node
 # other than the one specified as `default` alias in NVM (optional)
-# nvm use 4 1> /dev/null
+nvm use 14 1> /dev/null
 
 echo "Using nvm version $(nvm --version)"
 echo "Using node version $(node --version)"
