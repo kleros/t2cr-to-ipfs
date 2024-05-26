@@ -39,6 +39,9 @@ const fetchTokensBatch = async (id: string): Promise<Item[]> => {
     {
       method: 'POST',
       body: JSON.stringify(subgraphQuery),
+      headers: {
+        'Content-Type': 'application/json',
+      },
     },
   )
 
