@@ -8,7 +8,9 @@ export interface Prop {
 }
 
 export interface Item {
-  props: Prop[]
+  metadata : {
+    props: Prop[]
+  } | null
   id: string
 }
 
@@ -22,16 +24,18 @@ const fetchTokensBatch = async (id: string): Promise<Item[]> => {
           id_gt: "${id}"
         }, first: 1000) {
           id
-          props {
-            label
-            value
+          metadata {
+            props {
+              label
+              value
+            }
           }
         }
       }
     `,
   }
   const response = await fetch(
-    'https://api.thegraph.com/subgraphs/name/greenlucid/legacy-curate-xdai',
+    'https://api.studio.thegraph.com/query/61738/legacy-curate-gnosis/version/latest',
     {
       method: 'POST',
       body: JSON.stringify(subgraphQuery),
@@ -79,13 +83,13 @@ export default async function getTokens(): Promise<TokenInfo[]> {
 
   const tokens: Map<string, TokenInfo> = new Map()
   for (const token of tokensFromSubgraph) {
-    const caipAddress = token.props.find((p) => p.label === 'Address')
+    const caipAddress = token?.metadata?.props.find((p) => p.label === 'Address')
       ?.value as string
-    const name = token.props.find((p) => p.label === 'Name')?.value as string
-    const symbol = token.props.find((p) => p.label === 'Symbol')
+    const name = token?.metadata?.props.find((p) => p.label === 'Name')?.value as string
+    const symbol = token?.metadata?.props.find((p) => p.label === 'Symbol')
       ?.value as string
-    const logo = token.props.find((p) => p.label === 'Logo')?.value as string
-    const decimals = token.props.find((p) => p.label === 'Decimals')
+    const logo = token?.metadata?.props.find((p) => p.label === 'Logo')?.value as string
+    const decimals = token?.metadata?.props.find((p) => p.label === 'Decimals')
       ?.value as string
 
     const [namespace] = caipAddress.split(':')
