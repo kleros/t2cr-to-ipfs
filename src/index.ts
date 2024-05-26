@@ -28,6 +28,10 @@ const tryGet = async (key: string, db: Level<string, string>) => {
   }
 }
 
+interface IPFSResponse {
+  hash: string
+}
+
 async function main() {
   const db = new Level('./db')
   console.info()
@@ -62,57 +66,75 @@ async function main() {
       console.info(` got cache: ipfs://${cachedMultihash}`)
       continue
     } else {
-      const imageBuffer = await (
-        await fetch(`${process.env.IPFS_GATEWAY}${token.logoURI}`)
-      ).buffer()
+      const imageUrl = `${process.env.IPFS_GATEWAY}${token.logoURI}`
+      console.info(`Fetching image from URL: ${imageUrl}`)
+      const imageBuffer = await (await fetch(imageUrl)).buffer()
 
-      const imageSharp = await sharp(imageBuffer).resize(64, 64).png()
-      const resizedImageBuffer = await imageSharp.toBuffer()
+      try {
+        const imageSharp = sharp(imageBuffer)
+        const metadata = await imageSharp.metadata()
 
-      console.info(` Pinning shrunk image to ${process.env.IPFS_GATEWAY}`)
-      let ipfsResponse
+        console.info(`Image metadata:`, metadata)
 
-      for (let attempt = 1; attempt <= 10; attempt++)
-        try {
-          ipfsResponse = await ipfsPublish(
-            `${token.symbol}.png`,
-            resizedImageBuffer,
-          )
-          console.info(` Done.`)
-          break
-        } catch (err) {
-          console.warn(
-            ` Failed to upload ${token.symbol} to gateway IPFS.`,
-            err,
-          )
-          if (attempt === 5)
-            console.error(
-              ` Could not upload ${token.symbol} image to gateway IPFS after 5 attempts.`,
-            )
-          else console.warn(` Retrying ${attempt + 1} of ${5}`)
+        if (!metadata.format) {
+          throw new Error('Unsupported image format')
         }
 
-      if (!ipfsResponse) {
-        console.error()
-        throw new Error(
-          `Failed to upload ${token.symbol} image to ipfs gateway. Halting`,
-        )
-      }
-      const multihash = ipfsResponse[0].hash
+        const resizedImageBuffer = await imageSharp.resize(64, 64).png().toBuffer()
 
-      if (ipfsResponse) {
-        // Was successfully pinned to IPFS, no point in resubmitting.
-        console.log(` Caching ${multihash}`)
-        await db.put(
-          cacheName(token.logoURI as string, token.symbol),
-          multihash,
-        )
-      }
+        console.info(` Pinning shrunk image to ${process.env.IPFS_GATEWAY}`)
+        let ipfsResponse: IPFSResponse[] | null = null
 
-      tokensWithLogo.push({
-        ...token,
-        logoURI: `ipfs://${multihash}`,
-      })
+        for (let attempt = 1; attempt <= 10; attempt++) {
+          try {
+            ipfsResponse = await ipfsPublish(
+              `${token.symbol}.png`,
+              resizedImageBuffer,
+            )
+            console.info(` Done.`)
+            break
+          } catch (err) {
+            console.warn(
+              ` Failed to upload ${token.symbol} to gateway IPFS.`,
+              err,
+            )
+            if (attempt === 5) {
+              console.error(
+                ` Could not upload ${token.symbol} image to gateway IPFS after 5 attempts.`,
+              )
+            } else {
+              console.warn(` Retrying ${attempt + 1} of ${5}`)
+            }
+          }
+        }
+
+        if (!ipfsResponse) {
+          console.error()
+          throw new Error(
+            `Failed to upload ${token.symbol} image to ipfs gateway. Halting`,
+          )
+        }
+
+        const multihash = ipfsResponse[0].hash 
+
+        if (ipfsResponse) {
+          // Was successfully pinned to IPFS, no point in resubmitting.
+          console.log(` Caching ${multihash}`)
+          await db.put(
+            cacheName(token.logoURI as string, token.symbol),
+            multihash,
+          )
+        }
+
+        tokensWithLogo.push({
+          ...token,
+          logoURI: `ipfs://${multihash}`,
+        })
+      } catch (err) {
+        console.error(`Failed to process image for token ${token.symbol}:`, err)
+        console.error(`Token details:`, token)
+        throw err  // stop execution on error
+      }
     }
   }
 
@@ -127,4 +149,7 @@ async function main() {
   )
 }
 
-main()
+main().catch((err) => {
+  console.error('Unhandled error:', err)
+  process.exit(1)  // Added to ensure the script exits with an error code
+})
