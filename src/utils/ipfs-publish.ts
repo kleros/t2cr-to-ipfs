@@ -1,8 +1,7 @@
 import { File, FilebaseClient } from '@filebase/client';
 
 const filebase = new FilebaseClient({ 
-  token: process.env.FILEBASE_TOKEN ?? "", 
-  bucket: process.env.FILEBASE_BUCKET ?? "" 
+  token: process.env.FILEBASE_TOKEN ?? ""
 });
 
 /**
