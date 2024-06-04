@@ -74,7 +74,7 @@ async function main() {
         const imageSharp = sharp(imageBuffer)
         const metadata = await imageSharp.metadata()
 
-        console.info(`Image metadata:`, metadata)
+        console.debug(`Image metadata:`, metadata)
 
         if (!metadata.format) {
           throw new Error('Unsupported image format')
