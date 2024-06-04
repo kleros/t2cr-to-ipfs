@@ -6,3 +6,4 @@ yarn-error.log
 !.gitkeep
 images
 db
+.yarn
