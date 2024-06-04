@@ -1,6 +1,6 @@
 {
   "name": "t2cr-to-ipfs",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Pulls token information from the kleros t2cr and publishes them to ipfs following uniswap/token-lists schema.",
   "main": "src/index.ts",
   "repository": "git+https://github.com/kleros/t2cr-to-ipfs",
