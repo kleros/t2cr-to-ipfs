@@ -134,7 +134,7 @@ async function main() {
         } catch (err) {
           console.error(`Failed to process image for token ${token.symbol}:`, err)
           console.error(`Token details:`, token)
-          console.warn(` Retrying ${attempt + 1} of ${5}`)
+          console.warn(` Retrying ${attempt + 1} of ${10}`)
         }
       }
       
