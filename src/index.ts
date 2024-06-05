@@ -88,7 +88,7 @@ async function main() {
           for (let attemptIPFS = 1; attemptIPFS <= 5; attemptIPFS++) {
             try {
               ipfsResponse = await ipfsPublish(
-                `${token.symbol}.png`,
+                `${token.symbol}`,
                 resizedImageBuffer,
               )
               console.info(` Done.`)
