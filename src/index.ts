@@ -68,73 +68,79 @@ async function main() {
     } else {
       const imageUrl = `${process.env.IPFS_GATEWAY}${token.logoURI}`
       console.info(`Fetching image from URL: ${imageUrl}`)
-      const imageBuffer = await (await fetch(imageUrl)).buffer()
-
-      try {
-        const imageSharp = sharp(imageBuffer)
-        const metadata = await imageSharp.metadata()
-
-        console.debug(`Image metadata:`, metadata)
-
-        if (!metadata.format) {
-          throw new Error('Unsupported image format')
-        }
-
-        const resizedImageBuffer = await imageSharp.resize(64, 64).png().toBuffer()
-
-        console.info(` Pinning shrunk image to ${process.env.IPFS_GATEWAY}`)
-        let ipfsResponse: IPFSResponse[] | null = null
-
-        for (let attempt = 1; attempt <= 10; attempt++) {
-          try {
-            ipfsResponse = await ipfsPublish(
-              `${token.symbol}.png`,
-              resizedImageBuffer,
-            )
-            console.info(` Done.`)
-            break
-          } catch (err) {
-            console.warn(
-              ` Failed to upload ${token.symbol} to gateway IPFS.`,
-              err,
-            )
-            if (attempt === 5) {
-              console.error(
-                ` Could not upload ${token.symbol} image to gateway IPFS after 5 attempts.`,
+      for (let attempt = 1; attempt <= 10; attempt++) {
+        try {
+          const imageBuffer = await (await fetch(imageUrl)).buffer()
+          const imageSharp = sharp(imageBuffer)
+          const metadata = await imageSharp.metadata()
+  
+          console.debug(`Image metadata:`, metadata)
+  
+          if (!metadata.format) {
+            throw new Error('Unsupported image format')
+          }
+  
+          const resizedImageBuffer = await imageSharp.resize(64, 64).png().toBuffer()
+  
+          console.info(` Pinning shrunk image to ${process.env.IPFS_GATEWAY}`)
+          let ipfsResponse: IPFSResponse[] | null = null
+  
+          for (let attemptIPFS = 1; attemptIPFS <= 5; attemptIPFS++) {
+            try {
+              ipfsResponse = await ipfsPublish(
+                `${token.symbol}.png`,
+                resizedImageBuffer,
               )
-            } else {
-              console.warn(` Retrying ${attempt + 1} of ${5}`)
+              console.info(` Done.`)
+              break
+            } catch (err) {
+              console.warn(
+                ` Failed to upload ${token.symbol} to gateway IPFS.`,
+                err,
+              )
+              if (attemptIPFS === 5) {
+                console.error(
+                  ` Could not upload ${token.symbol} image to gateway IPFS after 5 attempts.`,
+                )
+              } else {
+                console.warn(` Retrying ${attemptIPFS + 1} of ${5}`)
+              }
             }
           }
+  
+          if (!ipfsResponse) {
+            console.error()
+            throw new Error(
+              `Failed to upload ${token.symbol} image to ipfs gateway. Halting`,
+            )
+          }
+  
+          const multihash = ipfsResponse[0].hash 
+  
+          if (ipfsResponse) {
+            // Was successfully pinned to IPFS, no point in resubmitting.
+            console.log(` Caching ${multihash}`)
+            await db.put(
+              cacheName(token.logoURI as string, token.symbol),
+              multihash,
+            )
+          }
+  
+          tokensWithLogo.push({
+            ...token,
+            logoURI: `ipfs://${multihash}`,
+          })
+          break
+        } catch (err) {
+          console.error(`Failed to process image for token ${token.symbol}:`, err)
+          console.error(`Token details:`, token)
+          console.warn(` Retrying ${attempt + 1} of ${10}`)
+          if (attempt == 10) {
+            throw (err)
+          }
         }
-
-        if (!ipfsResponse) {
-          console.error()
-          throw new Error(
-            `Failed to upload ${token.symbol} image to ipfs gateway. Halting`,
-          )
-        }
-
-        const multihash = ipfsResponse[0].hash 
-
-        if (ipfsResponse) {
-          // Was successfully pinned to IPFS, no point in resubmitting.
-          console.log(` Caching ${multihash}`)
-          await db.put(
-            cacheName(token.logoURI as string, token.symbol),
-            multihash,
-          )
-        }
-
-        tokensWithLogo.push({
-          ...token,
-          logoURI: `ipfs://${multihash}`,
-        })
-      } catch (err) {
-        console.error(`Failed to process image for token ${token.symbol}:`, err)
-        console.error(`Token details:`, token)
-        throw err  // stop execution on error
       }
+      
     }
   }
 
