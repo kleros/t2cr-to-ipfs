@@ -16,7 +16,7 @@ async function ipfsPublish(
 ): Promise<{ hash: string; path: string }[]> {  // Return an array of objects with a hash property
   const buffer = Buffer.from(data);
 
-  const cid = await filebase.storeDirectory([new File([buffer], fileName)]);
+  const cid = await filebase.storeBlob(new File([buffer], fileName), fileName);
   
   return [{ hash: cid, path: `${cid}/${fileName}` }];  // Return an array
 }
