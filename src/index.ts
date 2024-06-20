@@ -144,15 +144,25 @@ async function main() {
     }
   }
 
-  // Publish fungible tokens
+  // Update tokens list in ENS (if needed)
   await checkPublishErc20(
     tokensWithLogo,
     provider,
-    process.env.LATEST_TOKEN_LIST_URL,
-    process.env.ENS_TOKEN_LIST_NAME,
+    process.env.LATEST_T2CRTOKENS_URL,
+    process.env.ENS_T2CRTOKENS_NAME,
     'Tokens',
     't2cr.tokenlist.json',
   )
+
+    // Update tokens list in ENS (if needed)
+    await checkPublishErc20(
+      tokensWithLogo,
+      provider,
+      process.env.LATEST_TOKENLIST_URL,
+      process.env.ENS_TOKENLIST_NAME,
+      'Tokens',
+      'tokenlist.tokenlist.json',
+    )
 }
 
 main().catch((err) => {
