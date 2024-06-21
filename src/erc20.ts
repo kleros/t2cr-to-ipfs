@@ -101,7 +101,7 @@ export default async function checkPublishErc20(
     console.info('List did not change.')
     console.info(
       'Latest list can be found at',
-      process.env.LATEST_TOKEN_LIST_URL,
+      listURL,
     )
     return
   } else {
