@@ -73,18 +73,18 @@ async function main() {
           const imageBuffer = await (await fetch(imageUrl)).buffer()
           const imageSharp = sharp(imageBuffer)
           const metadata = await imageSharp.metadata()
-  
+
           console.debug(`Image metadata:`, metadata)
-  
+
           if (!metadata.format) {
             throw new Error('Unsupported image format')
           }
-  
+
           const resizedImageBuffer = await imageSharp.resize(64, 64).png().toBuffer()
-  
+
           console.info(` Pinning shrunk image to ${process.env.IPFS_GATEWAY}`)
           let ipfsResponse: IPFSResponse[] | null = null
-  
+
           for (let attemptIPFS = 1; attemptIPFS <= 5; attemptIPFS++) {
             try {
               ipfsResponse = await ipfsPublish(
@@ -107,16 +107,16 @@ async function main() {
               }
             }
           }
-  
+
           if (!ipfsResponse) {
             console.error()
             throw new Error(
               `Failed to upload ${token.symbol} image to ipfs gateway. Halting`,
             )
           }
-  
-          const multihash = ipfsResponse[0].hash 
-  
+
+          const multihash = ipfsResponse[0].hash
+
           if (ipfsResponse) {
             // Was successfully pinned to IPFS, no point in resubmitting.
             console.log(` Caching ${multihash}`)
@@ -125,7 +125,7 @@ async function main() {
               multihash,
             )
           }
-  
+
           tokensWithLogo.push({
             ...token,
             logoURI: `ipfs://${multihash}`,
@@ -140,7 +140,7 @@ async function main() {
           }
         }
       }
-      
+
     }
   }
 
@@ -154,15 +154,32 @@ async function main() {
     't2cr.tokenlist.json',
   )
 
-    // Update tokens list in ENS (if needed)
-    await checkPublishErc20(
-      tokensWithLogo,
-      provider,
-      process.env.LATEST_TOKENLIST_URL,
-      process.env.ENS_TOKENLIST_NAME,
-      'Tokens',
-      'tokenlist.tokenlist.json',
-    )
+  // Update tokens list in ENS (if needed)
+  await checkPublishErc20(
+    tokensWithLogo,
+    provider,
+    process.env.LATEST_TOKENLIST_URL,
+    process.env.ENS_TOKENLIST_NAME,
+    'Tokens',
+    'tokenlist.tokenlist.json',
+  )
+
+  // Do a heartbeat to monitoring that the bot has completed the task
+  if (process.env.HEARTBEAT_ENDPOINT) {
+    await fetch(process.env.HEARTBEAT_ENDPOINT)
+      .then((response) => {
+        if (response.status !== 200) {
+          console.log('Error: Not succesfull status when trying to do the heartbeat.');
+          return
+        }
+        console.log('Heartbeat succesfully performed.');
+      })
+      .catch((error) => {
+        console.log(error);
+      }
+      )
+  }
+
 }
 
 main().catch((err) => {
