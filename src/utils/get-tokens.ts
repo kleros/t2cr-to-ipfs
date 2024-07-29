@@ -95,6 +95,10 @@ export default async function getTokens(): Promise<TokenInfo[]> {
     const decimals = token?.metadata?.props.find((p) => p.label === 'Decimals')
       ?.value as string
 
+    if (!caipAddress || !name || !symbol || !decimals) {
+      continue
+    }
+    
     const [namespace] = caipAddress.split(':')
     if (namespace !== 'eip155') {
       nonEvmTokens.push(caipAddress)
