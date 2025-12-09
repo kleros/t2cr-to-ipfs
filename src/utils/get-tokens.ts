@@ -8,9 +8,7 @@ export interface Prop {
 }
 
 export interface Item {
-  metadata: {
-    props: Prop[]
-  } | null
+  props: Prop[]
   id: string
 }
 
@@ -20,21 +18,18 @@ const fetchTokensBatch = async (id: string): Promise<Item[]> => {
   }
   const subgraphQuery = {
     query: `
-      {
-        litems(where: {
-          registryAddress: "${process.env.KLEROS_TOKENS_REGISTRY_ADDRESS}",
-          status_in: [Registered, ClearingRequested],
-          id_gt: "${id}"
-        }, first: 1000) {
-          id
-          metadata {
-            props {
-              label
-              value
-            }
-          }
-        }
+  {
+    litems: LItem(
+      where: {registryAddress: {_eq: "${process.env.KLEROS_TOKENS_REGISTRY_ADDRESS}"}, status: {_in: [Registered, ClearingRequested]}, id: {_gt: "${id}}"}}
+      limit: 1000
+    ) {
+      id
+      props {
+        label
+        value
       }
+    }
+  }
     `,
   }
   const response = await fetch(process.env.CURATE_GRAPH_URL, {
@@ -42,9 +37,6 @@ const fetchTokensBatch = async (id: string): Promise<Item[]> => {
     body: JSON.stringify(subgraphQuery),
     headers: {
       'Content-Type': 'application/json',
-      ...(process.env.GRAPH_API_KEY
-        ? { Authorization: `Bearer ${process.env.GRAPH_API_KEY}` }
-        : {}),
     },
   })
 
@@ -89,16 +81,13 @@ export default async function getTokens(): Promise<TokenInfo[]> {
 
   const tokens: Map<string, TokenInfo> = new Map()
   for (const token of tokensFromSubgraph) {
-    const caipAddress = token?.metadata?.props.find(
-      (p) => p.label === 'Address',
-    )?.value as string
-    const name = token?.metadata?.props.find((p) => p.label === 'Name')
+    const caipAddress = token?.props.find((p) => p.label === 'Address')
       ?.value as string
-    const symbol = token?.metadata?.props.find((p) => p.label === 'Symbol')
+    const name = token?.props.find((p) => p.label === 'Name')?.value as string
+    const symbol = token?.props.find((p) => p.label === 'Symbol')
       ?.value as string
-    const logo = token?.metadata?.props.find((p) => p.label === 'Logo')
-      ?.value as string
-    const decimals = token?.metadata?.props.find((p) => p.label === 'Decimals')
+    const logo = token?.props.find((p) => p.label === 'Logo')?.value as string
+    const decimals = token?.props.find((p) => p.label === 'Decimals')
       ?.value as string
 
     if (!caipAddress || !name || !symbol || !decimals) {
